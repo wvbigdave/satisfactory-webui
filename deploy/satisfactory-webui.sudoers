@@ -1,0 +1,2 @@
+# Fixed allowlist only; no wildcard, daemon-reload, edit or shell commands.
+satisfactory ALL=(root) NOPASSWD: /usr/bin/systemctl start satisfactory.service, /usr/bin/systemctl stop satisfactory.service, /usr/bin/systemctl restart satisfactory.service
