@@ -372,8 +372,11 @@ class Handler(BaseHTTPRequestHandler):
             _send_file(self, os.path.join(WEB_DIR, "app.js"), "application/javascript; charset=utf-8")
         elif path == "/style.css":
             _send_file(self, os.path.join(WEB_DIR, "style.css"), "text/css; charset=utf-8")
-        else:
+        elif path.startswith("/api/"):
             _send_json(self, {"error": "not found"}, 404)
+        else:
+            # SPA fallback: any non-API path serves the single-page app shell.
+            _send_file(self, os.path.join(WEB_DIR, "index.html"), "text/html; charset=utf-8")
 
     def do_POST(self):
         if not self._check():
