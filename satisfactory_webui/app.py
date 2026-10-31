@@ -8,6 +8,7 @@ adding auth and HTTPS first.
 """
 import json
 import os
+import re
 import secrets
 import shutil
 import socket
@@ -37,6 +38,8 @@ WEB_DIR = os.path.join(os.path.dirname(__file__), "web")
 CONFIG_DIR = "/home/satisfactory/server/FactoryGame/Saved/Config/LinuxServer"
 ENGINE_INI = os.path.join(CONFIG_DIR, "Engine.ini")
 GAMEUSER_INI = os.path.join(CONFIG_DIR, "GameUserSettings.ini")
+STEAM_MANIFEST = "/home/satisfactory/server/steamapps/appmanifest_1690800.acf"
+GAME_METADATA = "/home/satisfactory/server/Engine/Binaries/Linux/FactoryServer-Linux-Shipping.version"
 
 _csrf = secrets.token_urlsafe(32)
 _poll_lock = threading.Lock()
@@ -185,9 +188,40 @@ def _origin_ok(handler):
 
 
 # --- Route handlers ---------------------------------------------------------
+def _installed_version():
+    """Read installed files afresh; Steam IDs, game CLs and UE versions differ."""
+    out = {"steamBuildId": None, "gameVersion": None, "changelist": None,
+           "steamSource": STEAM_MANIFEST, "gameSource": GAME_METADATA, "errors": []}
+    try:
+        with open(STEAM_MANIFEST, encoding="utf-8") as f:
+            # Only root AppState pairs, never TargetBuildID or nested depot IDs.
+            root = f.read(262144).split('{', 1)[1].split('{', 1)[0]
+        pairs = dict(re.findall(r'"([^"\n]+)"\s*"([^"\n]*)"', root))
+        if pairs.get("appid") != "1690800" or not pairs.get("buildid", "").isdigit():
+            raise ValueError("missing/invalid AppState appid or buildid")
+        out["steamBuildId"] = pairs["buildid"]
+    except (OSError, ValueError, IndexError) as e:
+        out["errors"].append("Steam manifest unavailable: " + str(e))
+    try:
+        with open(GAME_METADATA, encoding="utf-8") as f:
+            data = json.loads(f.read(262144))
+        if not isinstance(data, dict):
+            raise ValueError("expected a metadata object")
+        version = data.get("GameVersion")
+        if isinstance(version, str) and version.strip():
+            out["gameVersion"] = version.strip()
+        cl = data.get("Changelist")
+        if type(cl) is int and cl > 0:
+            out["changelist"] = str(cl)
+    except (OSError, ValueError) as e:
+        out["errors"].append("Game metadata unavailable: " + str(e))
+    return out
+
+
 def _route_overview():
-    st = _fetch_state()
+    st = dict(_fetch_state())
     st["disk"] = _disk()
+    st["serverVersion"] = _installed_version()
     return st
 
 
@@ -219,6 +253,7 @@ def _route_logs():
 def _route_about():
     return {
         "version": __version__,
+        "serverVersion": _installed_version(),
         "bind": BIND,
         "port": PORT,
         "networks": NETWORKS,

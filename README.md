@@ -62,6 +62,7 @@ game.
 | Disable console | `sudo systemctl disable --now satisfactory-webui` |
 | Tests | `python3 -m unittest discover -s tests -v` |
 | JS syntax | `node --check satisfactory_webui/web/app.js` (developer machine only) |
+| Frontend regressions | `node --test tests/test_frontend.js` (developer machine only; no npm packages) |
 
 ## Versioning
 
@@ -71,3 +72,25 @@ game.
 | Presentation | Server-rendered version footer on every route, `/api/version` |
 | Releases | SemVer; changes recorded in [CHANGELOG.md](CHANGELOG.md) |
 | Public-ready | Not claimed: authentication and HTTPS are required before public exposure |
+
+### Installed game-server version
+
+Overview and About expose the same `serverVersion` object returned by
+`/api/overview` and `/api/about`, even if the game's HTTPS API is offline:
+
+- **Steam build ID**: root `buildid` in
+  `/home/satisfactory/server/steamapps/appmanifest_1690800.acf` (App ID 1690800),
+  not `TargetBuildID`, depot manifest IDs, or a latest-release lookup.
+- **Game version** and **game changelist (CL)**: explicit `GameVersion` and
+  `Changelist` fields in
+  `/home/satisfactory/server/Engine/Binaries/Linux/FactoryServer-Linux-Shipping.version`.
+  Unreal Engine `MajorVersion`/`MinorVersion` are not the game version.
+- Missing/unreadable metadata is **Unknown**, with source paths and errors
+  displayed. Files are read on each request so updates need no WebUI restart.
+  These describe installed files, not proof of which executable a running
+  process loaded. The WebUI footer and `/api/version` remain UI-only SemVer.
+
+Implementation references: [Satisfactory HTTPS API](https://satisfactory.wiki.gg/wiki/Dedicated_servers/HTTPS_API)
+for live game state, [MDN hidden](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Global_attributes/hidden)
+for completed status removal. The loading bug was lifecycle state left set after
+rendering, not an API polling failure or CSS overriding the hidden attribute.

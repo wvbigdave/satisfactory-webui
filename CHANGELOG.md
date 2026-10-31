@@ -4,6 +4,19 @@ All notable changes to the Satisfactory WebUI are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); versioning is SemVer
 (`__version__` in `satisfactory_webui/__init__.py` is the single source of truth).
 
+## [0.2.0] - 2026-10-31
+
+### Fixed
+- Clear the initial `Loading…` status and `aria-busy` after all five page loads,
+  including API errors and network failures. Preserve later action messages.
+
+### Added
+- Overview and About show installed game version, game changelist and Steam
+  build ID separately from the WebUI version. Metadata is read afresh from the
+  installed Steam appmanifest and FactoryServer `.version` file; unavailable
+  values remain Unknown. Installed files are not proof of the running version.
+- Dependency-free frontend lifecycle regressions and installed-metadata tests.
+
 ## [0.1.0] - 2026-10-28
 
 Initial release — LAN admin console for the Axtriss Satisfactory dedicated server.

@@ -25,7 +25,17 @@
 
   function setNotice(msg, kind) {
     notice.textContent = msg;
+    notice.hidden = !msg;
     notice.className = kind ? "notice " + kind : "notice";
+  }
+
+  function loadPage(path, render) {
+    return apiGet(path).then(render).catch(function (e) {
+      view.innerHTML = '<p class="err">' + esc(e.message) + "</p>";
+    }).finally(function () {
+      view.setAttribute("aria-busy", "false");
+      if (notice.textContent === "Loading…") setNotice("");
+    });
   }
 
   function apiGet(path) {
@@ -49,7 +59,7 @@
   /* ---------- Overview ---------- */
   function renderOverview(d) {
     if (!d.ok) {
-      view.innerHTML = '<p class="err">Server unreachable: ' + esc(d.error) + "</p>";
+      view.innerHTML = '<p class="err">Server unreachable: ' + esc(d.error) + "</p>" + renderVersion(d.serverVersion);
       return;
     }
     var g = d.state || {};
@@ -84,6 +94,7 @@
       html += '<div class="kv"><span>Total</span><b>' + fmtBytes(d.disk.total) + "</b></div></section>";
     }
 
+    html += renderVersion(d.serverVersion);
     html += '<section class="card"><h2>Service control</h2><div class="btnrow">';
     html += '<button data-svc="start">Start</button>';
     html += '<button data-svc="restart">Restart</button>';
@@ -101,9 +112,7 @@
   }
 
   function loadOverview() {
-    apiGet("/api/overview").then(renderOverview).catch(function (e) {
-      view.innerHTML = '<p class="err">' + esc(e.message) + "</p>";
-    });
+    return loadPage("/api/overview", renderOverview);
   }
 
   /* ---------- Saves ---------- */
@@ -173,9 +182,7 @@
   }
 
   function loadSaves() {
-    apiGet("/api/saves").then(renderSaves).catch(function (e) {
-      view.innerHTML = '<p class="err">' + esc(e.message) + "</p>";
-    });
+    return loadPage("/api/saves", renderSaves);
   }
 
   /* ---------- Configuration ---------- */
@@ -254,9 +261,7 @@
   }
 
   function loadConfig() {
-    apiGet("/api/config").then(renderConfig).catch(function (e) {
-      view.innerHTML = '<p class="err">' + esc(e.message) + "</p>";
-    });
+    return loadPage("/api/config", renderConfig);
   }
 
   /* ---------- Logs ---------- */
@@ -267,28 +272,38 @@
   }
 
   function loadLogs() {
-    apiGet("/api/logs").then(renderLogs).catch(function (e) {
-      view.innerHTML = '<p class="err">' + esc(e.message) + "</p>";
-    });
+    return loadPage("/api/logs", renderLogs);
   }
 
   /* ---------- About ---------- */
   function renderAbout(d) {
     var html = '<section class="card"><h2>About</h2>';
-    html += '<div class="kv"><span>Version</span><b>' + esc(d.version) + "</b></div>";
+    html += '<div class="kv"><span>WebUI version</span><b>' + esc(d.version) + "</b></div>";
     html += '<div class="kv"><span>Bind</span><b>' + esc(d.bind) + ":" + esc(d.port) + "</b></div>";
     html += '<div class="kv"><span>Admitted networks</span><b>' + esc(d.networks.join(", ")) + "</b></div>";
     html += '<div class="kv"><span>Config dir</span><b>' + esc(d.configDir) + "</b></div>";
     html += '<div class="kv"><span>Service</span><b>' + esc((d.service && d.service.ActiveState) || "—") + "</b></div>";
     html += "</section>";
+    html += renderVersion(d.serverVersion);
     html += '<section class="card"><h2>Listeners</h2><pre class="log">' + esc(d.listeners || "(none)") + "</pre></section>";
     view.innerHTML = html;
   }
 
   function loadAbout() {
-    apiGet("/api/about").then(renderAbout).catch(function (e) {
-      view.innerHTML = '<p class="err">' + esc(e.message) + "</p>";
+    return loadPage("/api/about", renderAbout);
+  }
+
+  function renderVersion(info) {
+    var v = info || {};
+    var html = '<section class="card"><h2>Installed game server</h2>';
+    [["Game version", v.gameVersion], ["Game changelist (CL)", v.changelist],
+      ["Steam build ID", v.steamBuildId]].forEach(function (row) {
+      html += '<div class="kv"><span>' + row[0] + '</span><b>' + esc(row[1] || "Unknown") + '</b></div>';
     });
+    html += '<p class="hint">Installed files, not a latest-release lookup or proof of the running process version.</p>';
+    html += '<p class="hint">Steam source: ' + esc(v.steamSource || "unavailable") + '<br>Game source: ' + esc(v.gameSource || "unavailable") + '</p>';
+    if (v.errors && v.errors.length) html += '<p class="hint">' + esc(v.errors.join("; ")) + '</p>';
+    return html + '</section>';
   }
 
   /* ---------- helpers ---------- */
@@ -330,6 +345,7 @@
     title.textContent = r.title;
     clearTimers();
     setNotice("Loading…");
+    view.setAttribute("aria-busy", "true");
     r.load();
     if (r.poll) timers.push(setInterval(r.load, POLL));
   }
