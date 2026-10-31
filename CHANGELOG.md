@@ -4,6 +4,14 @@ All notable changes to the Satisfactory WebUI are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); versioning is SemVer
 (`__version__` in `satisfactory_webui/__init__.py` is the single source of truth).
 
+## [0.2.1] - 2026-10-31
+
+### Fixed
+- Reveal installed metadata inside the WebUI's systemd mount sandbox using
+  `ProtectHome=tmpfs` and explicit server read-only/config writable bind mounts.
+  `ReadOnlyPaths` alone did not undo the previous `ProtectHome=true` hiding.
+  Other home data remains hidden; no game service or files are modified.
+
 ## [0.2.0] - 2026-10-31
 
 ### Fixed

@@ -19,9 +19,11 @@ Restart=on-failure
 RestartSec=3
 UMask=0077
 ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/home/satisfactory/server/FactoryGame/Saved/Config/LinuxServer
-ReadOnlyPaths=/home/satisfactory/server
+# Keep other home data hidden, explicitly expose only the installed server.
+# ReadOnlyPaths cannot reveal paths hidden by ProtectHome=true.
+ProtectHome=tmpfs
+BindReadOnlyPaths=/home/satisfactory/server
+BindPaths=/home/satisfactory/server/FactoryGame/Saved/Config/LinuxServer
 PrivateDevices=true
 ProtectKernelTunables=true
 ProtectKernelModules=true

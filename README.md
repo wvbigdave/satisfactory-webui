@@ -90,6 +90,11 @@ Overview and About expose the same `serverVersion` object returned by
   These describe installed files, not proof of which executable a running
   process loaded. The WebUI footer and `/api/version` remain UI-only SemVer.
 
+The service uses `ProtectHome=tmpfs` with a read-only server directory bind and
+an explicit writable config-directory bind. Binding directories avoids pinning
+old metadata inodes if Steam replaces files during an update. Other home data
+remains hidden. See [systemd sandboxing](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html#ProtectHome=).
+
 Implementation references: [Satisfactory HTTPS API](https://satisfactory.wiki.gg/wiki/Dedicated_servers/HTTPS_API)
 for live game state, [MDN hidden](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Global_attributes/hidden)
 for completed status removal. The loading bug was lifecycle state left set after
