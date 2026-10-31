@@ -19,7 +19,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
 from . import __version__
-from . import api, control, fields
+from . import api, control, fields, monitor, archives
 
 # --- Configuration (overridable via environment) ---------------------------
 BIND = os.environ.get("SATISFACTORY_BIND", "192.168.4.60")
@@ -109,7 +109,9 @@ def _fetch_state():
             out["latestSave"] = api.latest_save(sess)
             out["saveCount"] = api.save_count(sess)
             out["service"] = control.status()
-            out["ok"] = True
+            out["ok"] = out["state"] is not None and out["health"] is not None
+            if not out["ok"]:
+                out["error"] = "Game HTTPS API unavailable; Linux monitoring remains available"
         except Exception as e:
             out["error"] = str(e)
         _poll_cache["data"] = out
@@ -119,7 +121,7 @@ def _fetch_state():
 
 def _disk():
     try:
-        st = shutil.disk_usage("/home/satisfactory")
+        st = shutil.disk_usage("/home/satisfactory/server")
         return {"total": st.total, "used": st.used, "free": st.free}
     except Exception:
         return None
@@ -170,11 +172,14 @@ def _send_file(handler, path, content_type):
 
 def _read_body(handler):
     length = int(handler.headers.get("Content-Length", 0) or 0)
+    if length > 65536 or length < 0:
+        raise ValueError("request body exceeds 64 KiB")
     if length <= 0:
         return {}
     raw = handler.rfile.read(length)
     try:
-        return json.loads(raw)
+        body = json.loads(raw)
+        return body if isinstance(body, dict) else {}
     except ValueError:
         return {}
 
@@ -183,8 +188,8 @@ def _origin_ok(handler):
     origin = handler.headers.get("Origin")
     if not origin:
         return True  # non-browser client; CSRF token still required on POST
-    host = urlparse(origin).netloc
-    return host in HOSTS
+    parsed = urlparse(origin)
+    return parsed.scheme == "http" and parsed.netloc == handler.headers.get("Host") and parsed.netloc in HOSTS
 
 
 # --- Route handlers ---------------------------------------------------------
@@ -222,6 +227,9 @@ def _route_overview():
     st = dict(_fetch_state())
     st["disk"] = _disk()
     st["serverVersion"] = _installed_version()
+    st["resources"] = monitor.resources()
+    st["saveStorage"] = monitor.save_sizes()
+    st["history"] = monitor.read(hours=6)
     return st
 
 
@@ -304,6 +312,8 @@ def _post_save(body):
 
 
 def _post_load(body):
+    if body.get("confirm") is not True:
+        return {"error": "explicit confirmation required"}, 400
     session = (body.get("session") or "").strip()
     save = (body.get("save") or "").strip()
     if not session or not save:
@@ -315,6 +325,8 @@ def _post_load(body):
 
 
 def _post_delete_save(body):
+    if body.get("confirm") is not True:
+        return {"error": "explicit confirmation required"}, 400
     session = (body.get("session") or "").strip()
     save = (body.get("save") or "").strip()
     if not session or not save:
@@ -326,6 +338,8 @@ def _post_delete_save(body):
 
 
 def _post_delete_session(body):
+    if body.get("confirm") is not True:
+        return {"error": "explicit confirmation required"}, 400
     session = (body.get("session") or "").strip()
     if not session:
         return {"error": "session required"}, 400
@@ -346,6 +360,8 @@ def _post_command(body):
 
 
 def _post_shutdown(body):
+    if body.get("confirm") is not True:
+        return {"error": "explicit confirmation required"}, 400
     ok, d = api.shutdown()
     if not ok:
         return {"error": d.get("errorMessage") or d.get("errorCode") or str(d)}, 400
@@ -353,6 +369,8 @@ def _post_shutdown(body):
 
 
 def _post_service(body):
+    if body.get("confirm") is not True:
+        return {"error": "explicit confirmation required"}, 400
     action = body.get("action")
     ok, msg = control.action(action)
     if not ok:
@@ -361,8 +379,26 @@ def _post_service(body):
 
 
 # --- HTTP handler -----------------------------------------------------------
+def _post_backup(body):
+    return archives.create(body.get("name")), 200
+
+
+def _post_remove_backup(body):
+    if body.get("confirm") is not True:
+        return {"error": "explicit confirmation required"}, 400
+    return archives.remove(body.get("name")), 200
+
+
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
+
+    def end_headers(self):
+        self._security_headers()
+        super().end_headers()
+
+    def setup(self):
+        super().setup()
+        self.connection.settimeout(30)
 
     def _security_headers(self):
         self.send_header("X-Content-Type-Options", "nosniff")
@@ -374,12 +410,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def _check(self):
         if not _admitted(_client_ip(self)):
-            self.send_response(403)
-            self.end_headers()
+            _send_json(self, {"error": "network rejected"}, 403)
             return False
         if not _host_ok(self.headers.get("Host", "")):
-            self.send_response(403)
-            self.end_headers()
+            _send_json(self, {"error": "host rejected"}, 403)
             return False
         return True
 
@@ -401,6 +435,34 @@ class Handler(BaseHTTPRequestHandler):
             _send_json(self, _route_logs())
         elif path == "/api/about":
             _send_json(self, _route_about())
+        elif path == "/api/history":
+            try:
+                hours = int(parse_qs(urlparse(self.path).query).get("hours", [24])[0])
+                if hours not in (1, 6, 24, 168):
+                    raise ValueError("unsupported range")
+                _send_json(self, monitor.read(hours))
+            except ValueError as e:
+                _send_json(self, {"error": str(e)}, 400)
+        elif path == "/api/backups":
+            _send_json(self, archives.list_backups())
+        elif path in ("/api/download-save", "/api/download-backup"):
+            try:
+                name = parse_qs(urlparse(self.path).query).get("name", [""])[0]
+                opener = archives.open_save if path.endswith("-save") else archives.open_backup
+                with opener(name) as source:
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/octet-stream")
+                    from urllib.parse import quote
+                    self.send_header("Content-Disposition", "attachment; filename*=UTF-8''" + quote(name, safe=""))
+                    self.send_header("Cache-Control", "no-store")
+                    self.send_header("Content-Length", str(os.fstat(source.fileno()).st_size))
+                    self.end_headers()
+                    shutil.copyfileobj(source, self.wfile, 256*1024)
+            except (OSError, ValueError) as e:
+                _send_json(self, {"error": str(e)}, 400)
+        elif path == "/api/credits":
+            with open(os.path.join(WEB_DIR, "credits.json"), encoding="utf-8") as f:
+                _send_json(self, json.load(f))
         elif path == "/":
             _send_file(self, os.path.join(WEB_DIR, "index.html"), "text/html; charset=utf-8")
         elif path == "/app.js":
@@ -423,7 +485,12 @@ class Handler(BaseHTTPRequestHandler):
             _send_json(self, {"error": "invalid CSRF token"}, 403)
             return
         path = urlparse(self.path).path
-        body = _read_body(self)
+        try:
+            body = _read_body(self)
+        except (ValueError, TypeError) as e:
+            self.close_connection = True
+            _send_json(self, {"error": str(e)}, 400)
+            return
         routes = {
             "/api/apply-options": _post_apply_options,
             "/api/apply-advanced": _post_apply_advanced,
@@ -434,6 +501,8 @@ class Handler(BaseHTTPRequestHandler):
             "/api/command": _post_command,
             "/api/shutdown": _post_shutdown,
             "/api/service": _post_service,
+            "/api/backup": _post_backup,
+            "/api/remove-backup": _post_remove_backup,
         }
         fn = routes.get(path)
         if not fn:
@@ -441,6 +510,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             obj, status = fn(body)
+        except (ValueError, OSError) as e:
+            obj, status = {"error": str(e)}, 400
         except Exception as e:
             obj, status = {"error": str(e)}, 500
         _send_json(self, obj, status)
@@ -451,6 +522,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     server = ThreadingHTTPServer((BIND, PORT), Handler)
+    monitor.start(_fetch_state, _disk)
     print(f"Satisfactory WebUI v{__version__} on {BIND}:{PORT}", flush=True)
     server.serve_forever()
 

@@ -15,6 +15,47 @@
 
 ## Capabilities
 
+### v0.3 unified Linux console
+
+- Responsive industrial sidebar/dashboard with category-colored metrics,
+  native SVG history charts and accessible capacity gauges; no CDN dependencies.
+- One background sampler records real vanilla API TPS/player counts, Linux
+  **whole-service cgroup** CPU/memory, filesystem usage and save sizes every 30s.
+  SQLite history persists in `/var/lib/satisfactory-webui/history.sqlite`, bounded
+  to seven days / 20,161 samples. Charts are downsampled to at most 600 points;
+  unavailable samples remain gaps, not fabricated zeroes. CPU 100% means one core;
+  cgroup memory includes cache and is not process RSS. Heatmap is observed mean
+  concurrent players by UTC weekday/hour, not named users or unique-player counts.
+- Manual save snapshots and streamed downloads, stored separately in
+  `/var/lib/satisfactory-webui/backups`: 32 files, 512 MiB total, 64 MiB per file,
+  64 MiB disk headroom. Full storage refuses new copies; **no automatic pruning**.
+  Source saves are read-only in the sandbox; changing files are rejected.
+  Snapshot names are server-generated; SHA-256 returned on creation.
+- Explicit confirmation before game stop/restart/start, load/delete, applying
+  options/settings or overwriting a named save. Mutation APIs retain CSRF and
+  exact same-origin checks; body size is bounded. No autonomous game policy added.
+- Upstream code vs design references are documented precisely in
+  [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and visible `/credits` with full
+  unmodified licenses and pinned revisions.
+
+| Feature | Status / reason |
+|---|---|
+| Overview, history, UTC count activity | Supported: vanilla API and Linux only |
+| Saves/downloads/manual backup vault | Supported: no game mutation for snapshot/download |
+| Existing config, logs, versions, ports, service controls | Retained; no changes applied during rollout |
+| Scheduled backups/restarts/updates/pruning, watchdog, notifications | Not enabled; policy requires separate explicit approval |
+| Restore/upload, arbitrary shell/console UI | Deferred: destructive/security-sensitive; download recovery copies first |
+| Factory/power/map/inventory/vehicle data, individual player identities | Unavailable from vanilla API; FRM/mod-required work deferred |
+| Pioneer HQ Go/React/GraphQL and Windows PowerShell runtime | Not bundled: incompatible/mod-dependent; compatible ideas integrated natively |
+| Public access | Not supported without a separate authenticated HTTPS boundary |
+
+New routes: `/history`, `/backups`, `/credits`. JSON read endpoints:
+`/api/history?hours=1|6|24|168`, `/api/backups`, `/api/credits`.
+Read-only attachment endpoints: `/api/download-save?name=<filename.sav>` and
+`/api/download-backup?name=<archive.sav>`. POST `/api/backup` takes `name`;
+`/api/remove-backup` takes `name` and `confirm: true`. All POSTs require the
+session CSRF header. Local snapshots are not off-host disaster recovery.
+
 | Page | Verified source / behavior |
 |---|---|
 | Overview | Live server state via HTTPS API, systemd state, disk usage; confirmed start/stop/restart |
@@ -42,6 +83,14 @@ first.
 ## Install / update
 
 Copy the complete tracked source to the target host (e.g. `/opt/satisfactory-webui`).
+
+Before replacing code, archive `/opt/satisfactory-webui`, the WebUI unit and
+sudoers allowlist under a root-only timestamped directory. Record both the
+`satisfactory` service MainPID and its game-binary child PID; neither should
+change. Installer restarts **only the WebUI**. Roll back by restoring that code
+and unit, `systemctl daemon-reload`, then restarting `satisfactory-webui` only.
+Do not remove `/var/lib/satisfactory-webui` when rolling back; it contains history
+and manual archives. `StateDirectory=` creates its restricted writable directory.
 
 ```sh
 # On the target host, after copying this repository:

@@ -133,7 +133,10 @@ def save_game(name):
 
 
 def load_game(session, save):
-    return safe_call("LoadGame", {"SessionName": session, "SaveName": save})
+    # Adapted from PyFactoryBridge pyfactorybridge/__init__.py load_game.
+    # MIT Copyright (c) 2024 Jacob; see THIRD_PARTY_NOTICES.md.
+    # Vanilla LoadGame selects SaveName; preserve advanced settings (never enable).
+    return safe_call("LoadGame", {"SaveName": save, "EnableAdvancedGameSettings": False})
 
 
 def delete_save_file(session, save):

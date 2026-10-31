@@ -4,6 +4,25 @@ All notable changes to the Satisfactory WebUI are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); versioning is SemVer
 (`__version__` in `satisfactory_webui/__init__.py` is the single source of truth).
 
+## [0.3.0] - 2026-10-31
+
+### Added
+- Unified responsive Linux/vanilla operations dashboard, orange industrial
+  sidebar, category-colored capacity gauges, session/progression and metadata.
+- Persistent bounded 30-second API/Linux history, six honest telemetry charts,
+  1h/6h/24h/7d windows and UTC observed-concurrent-player activity heatmap.
+- Constrained manual snapshot vault, SHA-256 creation receipt and streamed save/
+  archive downloads. Explicit removal only; no pruning, restore or game writes.
+- Visible Credits with pinned MIT upstreams and complete license texts; precise
+  code-reuse versus inspiration notices. No mod or player install required.
+
+### Fixed / hardened
+- Offline API no longer appears healthy; null observations remain unknown.
+- Measure game cgroup, not its shell MainPID; chart gaps survive downsampling.
+- Explicit destructive confirmations, quoted-attribute escaping, bounded request
+  bodies, exact origin-to-Host validation, headers on all HTTP responses.
+- Retain loading lifecycle regressions and installed version/build distinctions.
+
 ## [0.2.1] - 2026-10-31
 
 ### Fixed

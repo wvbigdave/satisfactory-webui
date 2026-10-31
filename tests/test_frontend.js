@@ -19,7 +19,7 @@ function boot(path, response) {
     getElementById(id) { return elements[id] ||= element(); },
     createElement() { return {textContent: '', get innerHTML() {
       return String(this.textContent).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-    }}; }, querySelector() { return element(); }},
+    }}; }, querySelector() { return element(); }, querySelectorAll() { return []; }},
     location: {pathname: path}, window: {addEventListener() {}},
     setInterval() {}, clearInterval() {},
     fetch(url) {
@@ -53,7 +53,7 @@ test('About labels UI, installed game, CL and Steam separately', async () => {
     'Steam build ID', '0.2.0', '1.2.3.4', '123456', '999999', '/manifest.acf', '/server.version'])
     assert.ok(html.includes(value), value);
 });
-for (const path of ['/', '/saves', '/config', '/logs', '/about']) {
+for (const path of ['/', '/saves', '/config', '/logs', '/about', '/history', '/backups', '/credits']) {
   for (const mode of ['success', 'api-error', 'network-error']) {
     test(`${path}: loading settles after ${mode}`, async () => {
       const data = mode === 'network-error' ? new Error('network unavailable') :
