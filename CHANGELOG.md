@@ -4,6 +4,19 @@ All notable changes to the Satisfactory WebUI are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); versioning is SemVer
 (`__version__` in `satisfactory_webui/__init__.py` is the single source of truth).
 
+## [0.6.2] - 2026-11-01
+
+### Added
+- **Backup vault manual snapshot control** (`/backups`): a "Create snapshot"
+  field at the top of the page backs up an existing save file by its save
+  name directly from the vault (Enter or button), with a working state and a
+  tip pointing to the per-save Snapshot button on Sessions & saves.
+
+### Changed
+- **Configuration page cleanup**: removed the raw config-key line (e.g.
+  `FG.WeatherPreset`) that rendered in monospace below every field — it added
+  noise and the filter already matches by key, so nothing is lost.
+
 ## [0.6.1] - 2026-11-01
 
 ### Added

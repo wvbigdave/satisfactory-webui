@@ -1,4 +1,5 @@
-import { Download, Trash2 } from "lucide-react";
+import { Download, Save as SaveIcon, Trash2 } from "lucide-react";
+import { useState } from "react";
 import { api, type BackupsData } from "../api";
 import { PageTitle } from "../components/Layout";
 import { Button, Chip, ErrorBox, Gauge, Loading, Panel, SectionHead, useConfirm, useToast } from "../components/ui";
@@ -9,6 +10,20 @@ export default function Backups() {
   const { data, error, loading, refresh } = useApi<BackupsData>(api.backups, [], 10000);
   const confirm = useConfirm();
   const toast = useToast();
+  const [snapName, setSnapName] = useState("");
+  const [snapping, setSnapping] = useState(false);
+
+  async function snapshot(name: string) {
+    if (snapping) return;
+    setSnapping(true);
+    try {
+      const r = await api.backup(name);
+      toast("ok", `Snapshot created · ${r.sha256?.slice(0, 12) ?? "ok"}`);
+      setSnapName("");
+      refresh();
+    } catch (e) { toast("err", e instanceof Error ? e.message : String(e)); }
+    finally { setSnapping(false); }
+  }
 
   async function remove(name: string) {
     const ok = await confirm({
@@ -24,6 +39,24 @@ export default function Backups() {
   return (
     <>
       <PageTitle title="Backup vault" note="Manual snapshots only. No automatic pruning. Original saves are never modified." />
+
+      <Panel glow={false} className="mb-5">
+        <SectionHead title="Create snapshot" hint="Backs up an existing save file from disk by its save name, without starting an in-game save." />
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <input
+            value={snapName} onChange={(e) => setSnapName(e.target.value)}
+            placeholder="Save file name, e.g. 2026-11-01T02_00_00_000Z.sav"
+            className="min-w-[240px] flex-1 rounded-md border border-edge2 bg-bg px-3 py-2 text-[13px] outline-none focus:border-accent"
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); const n = snapName.trim(); if (n) snapshot(n); } }}
+          />
+          <Button variant="primary" disabled={!snapName.trim() || snapping} onClick={() => snapshot(snapName.trim())}>
+            <span className="inline-flex items-center gap-1.5"><SaveIcon size={13} /> {snapping ? "Creating…" : "Create snapshot"}</span>
+          </Button>
+        </div>
+        <p className="mt-3 text-[11px] leading-relaxed text-muted">
+          Tip: the Sessions &amp; saves page can list every save file name, or use the <b>Snapshot</b> button beside a save to create one without typing the name here.
+        </p>
+      </Panel>
 
       {loading && !data && <Loading />}
       {error && !data && <ErrorBox message={error} />}
@@ -44,7 +77,7 @@ export default function Backups() {
           </Panel>
 
           <Panel glow={false}>
-            <SectionHead title="Snapshots" hint="Use Snapshot beside a save on the Sessions & saves page to create one." />
+            <SectionHead title="Snapshots" hint="Archives stored in the local vault." />
             {!data.files.length ? (
               <p className="text-sm text-muted">No snapshots yet.</p>
             ) : (

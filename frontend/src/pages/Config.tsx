@@ -43,7 +43,6 @@ function Field({
           <input type="text" className={common} value={value} onChange={(e) => onChange(e.target.value)} />
         )}
       </div>
-      <p className="mt-1 text-[10px] text-muted font-mono">{name}</p>
     </div>
   );
 }
