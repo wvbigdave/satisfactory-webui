@@ -4,6 +4,16 @@ All notable changes to the Satisfactory WebUI are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); versioning is SemVer
 (`__version__` in `satisfactory_webui/__init__.py` is the single source of truth).
 
+## [0.6.1] - 2026-11-01
+
+### Added
+- **Configuration filter bar** (backported from the ATS / openOMSI consoles): a
+  "Find an option…" field at the top of `/config` filters both panels live as
+  you type, matching a field by its key, label, or help text, with a live
+  match count and per-panel empty states. Implemented the React way — a
+  `useMemo`-derived entry list, so filtering re-renders only the visible
+  fields and never mutates the working edit state.
+
 ## [0.6.0] - 2026-11-01
 
 ### Added

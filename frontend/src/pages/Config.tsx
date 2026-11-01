@@ -1,9 +1,19 @@
-import { RotateCcw, Save } from "lucide-react";
+import { RotateCcw, Save, SearchX } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { api, type ConfigData, type FieldSpec } from "../api";
 import { PageTitle } from "../components/Layout";
 import { Button, Chip, ErrorBox, Loading, Panel, SectionHead, useConfirm, useToast } from "../components/ui";
 import { useApi } from "../lib/useApi";
+
+function fieldMatches(name: string, spec: FieldSpec, q: string) {
+  if (!q) return true;
+  const needle = q.toLowerCase();
+  return (
+    name.toLowerCase().includes(needle) ||
+    (spec.label || "").toLowerCase().includes(needle) ||
+    (spec.help || "").toLowerCase().includes(needle)
+  );
+}
 
 function Field({
   name, spec, value, onChange, dirty,
@@ -43,6 +53,7 @@ export default function Config() {
   const [server, setServer] = useState<Record<string, string>>({});
   const [adv, setAdv] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [q, setQ] = useState("");
   const toast = useToast();
   const confirm = useConfirm();
 
@@ -58,6 +69,16 @@ export default function Config() {
     if (!data) return [];
     return Object.keys(adv).filter((k) => adv[k] !== data.advanced[k]);
   }, [adv, data]);
+
+  const serverEntries = useMemo(() => {
+    if (!data) return [];
+    return Object.entries(data.serverFields || {}).filter(([name, spec]) => fieldMatches(name, spec, q));
+  }, [data, q]);
+  const advEntries = useMemo(() => {
+    if (!data) return [];
+    return Object.entries(data.advancedFields || {}).filter(([name, spec]) => fieldMatches(name, spec, q));
+  }, [data, q]);
+  const matches = serverEntries.length + advEntries.length;
 
   async function apply(kind: "server" | "advanced") {
     const changes = kind === "server" ? serverDirty : advDirty;
@@ -111,21 +132,38 @@ export default function Config() {
         <Chip tone={d.creativeModeEnabled ? "warn" : "muted"}>creative mode: {String(d.creativeModeEnabled)}</Chip>
       </div>
 
+      <div className="mb-4 flex min-w-[240px] flex-1 items-center gap-2 rounded-md border border-edge2 bg-bg px-3 py-1.5">
+        <SearchX size={13} className="text-muted" />
+        <input
+          value={q} onChange={(e) => setQ(e.target.value)}
+          placeholder="Find an option… (matches name, label or help)"
+          aria-label="Filter configuration options"
+          className="w-full bg-transparent text-[12px] outline-none placeholder:text-muted"
+        />
+        {q && <Chip tone="muted">{matches} match{matches === 1 ? "" : "es"}</Chip>}
+      </div>
+
       <div className="grid gap-5 lg:grid-cols-2">
         <Panel glow={false}>
           <SectionHead title="Server options" hint="Applies to the dedicated server runtime." />
-          {Object.entries(d.serverFields || {}).map(([name, spec]) => (
+          {serverEntries.map(([name, spec]) => (
             <Field key={name} name={name} spec={spec} value={server[name] ?? ""} dirty={serverDirty.includes(name)} onChange={(v) => setServer((s) => ({ ...s, [name]: v }))} />
           ))}
+          {!serverEntries.length && <p className="py-3 text-[12px] text-muted">{q ? "No server options match this filter." : "No server options returned by the API."}</p>}
         </Panel>
 
         <Panel glow={false}>
           <SectionHead title="Advanced game settings" hint="These can significantly change gameplay. Apply with care." />
-          {Object.entries(d.advancedFields || {}).map(([name, spec]) => (
+          {advEntries.map(([name, spec]) => (
             <Field key={name} name={name} spec={spec} value={adv[name] ?? ""} dirty={advDirty.includes(name)} onChange={(v) => setAdv((s) => ({ ...s, [name]: v }))} />
           ))}
+          {!advEntries.length && <p className="py-3 text-[12px] text-muted">{q ? "No advanced settings match this filter." : "No advanced settings returned by the API."}</p>}
         </Panel>
       </div>
+
+      {q && matches === 0 && (
+        <p className="mt-4 text-center text-[12px] text-muted">No configuration fields match “{q}”.</p>
+      )}
     </>
   );
 }
