@@ -44,6 +44,28 @@ All upstreams were inspected at the pinned revisions below. Code reuse is explic
 - All effects honour `prefers-reduced-motion`. No React/Next/Motion runtime, Tailwind, build step or CDN was adopted; the effects are re-implemented as plain CSS plus a small dependency-free script.
 - Data pages (`power`, `overallprod`, `detailedprod`, `map`, `drone`, `resourcesink`) were **NOT** ported: they poll the FRM game mod's endpoints, which is not installed and is not required of any player.
 
+## Frontend libraries (npm, bundled)
+
+The console UI is a React single-page app built with open-source libraries, each
+used unmodified under its own license:
+
+| Package | Version | License |
+|---|---|---|
+| react / react-dom | 19.3.1 | MIT |
+| motion | 12.43.0 | MIT |
+| recharts | 3.10.1 | MIT |
+| lucide-react | 0.545.0 | ISC |
+| tailwindcss / @tailwindcss/vite | 4.3.3 | MIT |
+
+Build-time only (not shipped as runtime code): vite 7.3.7 and
+@vitejs/plugin-react 5.2.0 (MIT), typescript 5.9.3 (Apache-2.0).
+
+Full license texts are retained in the frontend dependency tree at
+`frontend/node_modules/<package>/LICENSE`. The compiled bundle is served from
+this host — no CDN, no third-party runtime dependency. Exact pinned versions are
+in `frontend/package.json`; the committed build output lives in
+`satisfactory_webui/web/app/`.
+
 ## Excluded source
 
 No game mod (FRM or SML) is installed or required. Factory production, power, map, inventories, vehicles and named player telemetry remain unavailable because they are not exposed by the vanilla dedicated-server HTTPS API. Player names and unique-player counts are not reconstructed from unreliable logs.

@@ -36,7 +36,9 @@ class HTTPTests(unittest.TestCase):
     def test_all_shells_and_headers(self):
         for path in ['/', '/history', '/backups', '/saves', '/config', '/logs', '/about', '/credits']:
             with self.get(path) as r:
-                self.assertIn(b'id="view"', r.read())
+                shell = r.read()
+                self.assertIn(b'id="root"', shell)          # React mount point
+                self.assertIn(b'/assets/', shell)           # bundled SPA assets
                 self.assertIn("script-src 'self'", r.headers['Content-Security-Policy'])
                 self.assertEqual(r.headers['X-Frame-Options'], 'DENY')
                 self.assertEqual(r.headers['Cache-Control'], 'no-store')
@@ -85,24 +87,40 @@ class HTTPTests(unittest.TestCase):
             api.load_game('session', 'save')
             call.assert_called_once_with('LoadGame', {'SaveName':'save', 'EnableAdvancedGameSettings':False})
 
-    def test_visual_effects_assets_are_served_explicitly(self):
-        # The SPA fallback must NOT swallow the effect files: verify real content
-        # and correct MIME type for both, and that reduced-motion is honoured.
-        with self.get('/fx.css') as r:
-            body = r.read()
-            self.assertEqual(r.headers['Content-Type'], 'text/css; charset=utf-8')
-            self.assertIn(b'prefers-reduced-motion', body)
-            self.assertIn(b'fx-ripple-ring', body)
-            self.assertNotIn(b'id="view"', body)
-        with self.get('/fx.js') as r:
-            body = r.read()
-            self.assertEqual(r.headers['Content-Type'], 'application/javascript; charset=utf-8')
-            self.assertIn(b'__satisfactoryFx', body)
-            self.assertNotIn(b'id="view"', body)
+    def test_built_assets_are_served_with_correct_types(self):
+        # The SPA fallback must NOT swallow asset requests: real content and
+        # correct MIME types, resolved from the shell the server actually serves.
         with self.get('/') as r:
-            shell = r.read()
-            self.assertIn(b'/fx.css', shell)
-            self.assertIn(b'/fx.js', shell)
+            shell = r.read().decode()
+        import re
+        refs = re.findall(r'(?:src|href)="(/assets/[^"]+)"', shell)
+        self.assertTrue(refs, 'the shell must reference bundled assets')
+        seen = set()
+        for ref in refs:
+            with self.get(ref) as r:
+                body = r.read()
+                ctype = r.headers['Content-Type']
+                self.assertNotIn(b'id="root"', body, 'asset must not be the SPA shell')
+                if ref.endswith('.js'):
+                    self.assertEqual(ctype, 'application/javascript; charset=utf-8')
+                    self.assertGreater(len(body), 100000)
+                elif ref.endswith('.css'):
+                    self.assertEqual(ctype, 'text/css; charset=utf-8')
+                    self.assertIn(b'prefers-reduced-motion', body)
+                seen.add(ref)
+        self.assertEqual(len(seen), len(refs))
+
+    def test_asset_path_traversal_is_rejected(self):
+        for bad in ['/assets/../../etc/passwd', '/assets/..%2f..%2fetc%2fpasswd',
+                    '/assets/%2e%2e/%2e%2e/etc/passwd', '/assets//etc/passwd']:
+            with self.assertRaises(error.HTTPError) as e:
+                self.get(bad)
+            self.assertEqual(e.exception.code, 404, bad)
+
+    def test_unknown_asset_is_404_not_shell(self):
+        with self.assertRaises(error.HTTPError) as e:
+            self.get('/assets/does-not-exist.js')
+        self.assertEqual(e.exception.code, 404)
 
     def test_credits_report_the_authorized_frm_reuse(self):
         with self.get('/api/credits') as r:

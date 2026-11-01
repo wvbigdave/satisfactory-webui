@@ -76,9 +76,16 @@ class SafetyTests(unittest.TestCase):
             self.assertEqual(status, 400)
             action.assert_not_called()
 
-    def test_attribute_escape_includes_quotes(self):
-        source = Path('satisfactory_webui/web/app.js').read_text()
-        self.assertIn('replace(/"/g, "&quot;")', source)
+    def test_frontend_never_injects_raw_html(self):
+        # The vanilla app escaped strings by hand; the React SPA relies on React's
+        # automatic escaping instead. The equivalent guarantee is that no component
+        # ever bypasses it, so forbid raw-HTML injection in the frontend source.
+        offenders = []
+        for path in sorted(Path('frontend/src').rglob('*.ts*')):
+            text = path.read_text()
+            if 'dangerouslySetInnerHTML' in text or '.innerHTML' in text or 'insertAdjacentHTML' in text:
+                offenders.append(str(path))
+        self.assertEqual(offenders, [], f'raw HTML injection points: {offenders}')
 
 
 if __name__ == '__main__':

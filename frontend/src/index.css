@@ -1,0 +1,117 @@
+@import "tailwindcss";
+
+/* FICSIT-inspired industrial theme. Orange accent on charcoal, with
+   category colours for metrics: blue / green / purple / orange. */
+@theme {
+  --color-bg: #0b0e13;
+  --color-panel: #141922;
+  --color-panel2: #1b222d;
+  --color-edge: #2a3442;
+  --color-edge2: #3a4757;
+  --color-ink: #e9eef5;
+  --color-muted: #93a0b1;
+  --color-accent: #ff963e;
+  --color-accent2: #ca6d35;
+  --color-ok: #56d6a0;
+  --color-bad: #ff7c7c;
+  --color-warn: #edc76e;
+  --color-blue: #5aa9f0;
+  --color-green: #56d6a0;
+  --color-purple: #b48cf2;
+  --font-mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: #0d1118; }
+::-webkit-scrollbar-thumb { background: #2b3543; border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: #3b4756; }
+
+/* Ambient background: layered glows + drifting grid (ported from the
+   FRM Web UI visual layer; honours prefers-reduced-motion). */
+.ambient {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(1200px 700px at 50% -10%, rgba(232,163,97,0.10), transparent 60%),
+    radial-gradient(1000px 640px at 92% 112%, rgba(202,109,53,0.08), transparent 58%);
+}
+.ambient-grid {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.5;
+  background-image:
+    linear-gradient(to right, rgba(232,163,97,0.055) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(232,163,97,0.055) 1px, transparent 1px);
+  background-size: 44px 44px;
+  -webkit-mask-image: radial-gradient(ellipse at center, #000 28%, transparent 78%);
+  mask-image: radial-gradient(ellipse at center, #000 28%, transparent 78%);
+  animation: drift 70s linear infinite;
+}
+@keyframes drift { to { background-position: 44px 44px; } }
+
+/* Glass panels */
+.panel {
+  border: 1px solid var(--color-edge);
+  background: linear-gradient(180deg, rgba(27,34,45,0.72), rgba(20,25,34,0.86));
+  backdrop-filter: blur(8px);
+  border-radius: 12px;
+}
+
+/* MagicCard: cursor-following radial glow */
+.magic { position: relative; overflow: hidden; border-radius: inherit; }
+.magic::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; opacity: 0;
+  transition: opacity .35s ease; pointer-events: none; z-index: 0;
+  background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(232,163,97,0.30), rgba(202,109,53,0.10) 46%, transparent 72%);
+}
+.magic:hover::before, .magic:focus-within::before { opacity: 1; }
+.magic > * { position: relative; z-index: 1; }
+
+/* Shine border for hero cards */
+.shine { position: relative; overflow: hidden; }
+.shine::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px;
+  background: radial-gradient(60% 60% at 50% 50%, transparent 34%, #e8a361 70%, #ca6d35, transparent);
+  background-size: 300% 300%;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor; mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude; animation: shine 14s linear infinite; pointer-events: none;
+}
+@keyframes shine { 0% { background-position: 0% 0% } 50% { background-position: 100% 100% } 100% { background-position: 0% 0% } }
+
+/* Card hover glow */
+.glow { transition: box-shadow .5s ease, transform .5s ease, border-color .3s ease; }
+.glow:hover { border-color: var(--color-accent2); box-shadow: 0 0 6px rgba(232,163,97,.55), 0 0 18px rgba(202,109,53,.45), 0 0 36px rgba(202,109,53,.25); }
+
+/* Ripple rings behind hero */
+.ripples { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; border-radius: inherit; }
+.ripple {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  border: 1px solid rgba(232,163,97,0.28); border-radius: 50%;
+  box-shadow: 0 0 18px rgba(202,109,53,0.18);
+  animation: ripple 8s ease-out infinite; animation-delay: var(--d, 0s);
+}
+@keyframes ripple {
+  0% { transform: translate(-50%,-50%) scale(.62); opacity: 0 }
+  12% { opacity: inherit }
+  100% { transform: translate(-50%,-50%) scale(1.6); opacity: 0 }
+}
+
+.pulse { animation: pulse 2.6s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .5 } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-grid, .shine::after, .ripple, .pulse { animation: none; }
+  .ripple { display: none; }
+  .glow:hover { transform: none; }
+}

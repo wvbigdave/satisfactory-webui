@@ -110,15 +110,35 @@ game.
 | Game journal | `sudo journalctl -u satisfactory -n 200 --no-pager` |
 | Disable console | `sudo systemctl disable --now satisfactory-webui` |
 | Tests | `python3 -m unittest discover -s tests -v` |
-| JS syntax | `node --check satisfactory_webui/web/app.js` (developer machine only) |
+| Frontend typecheck | `cd frontend && npx tsc --noEmit` (developer machine only) |
+| Frontend build | `cd frontend && npm install && node node_modules/vite/bin/vite.js build` |
 | Frontend regressions | `node --test tests/test_frontend.js` (developer machine only; no npm packages) |
+
+### Frontend (React SPA)
+
+The UI is a React 19 + TypeScript single-page app: Vite 7, Tailwind CSS 4,
+Motion, Recharts and lucide-react. Source lives in `frontend/`; the **built
+output is committed** to `satisfactory_webui/web/app/` and served by the same
+Python stdlib server. The target host needs **no Node toolchain at runtime**.
+
+```sh
+cd frontend
+npm install                      # once; esbuild's postinstall script must be approved
+node node_modules/vite/bin/vite.js build   # writes ../satisfactory_webui/web/app/
+```
+
+Rebuild and redeploy whenever anything under `frontend/src/` changes; commit the
+regenerated `web/app/` in the same commit (hashed asset filenames change).
+`/assets/*` is served by a dedicated handler with an extension allowlist and
+`realpath` containment — traversal is rejected with 404. The build emits no
+inline script or style, so the `'self'` CSP is unchanged.
 
 ## Versioning
 
 | Policy | Detail |
 |---|---|
 | Version source | `satisfactory_webui/__init__.py` |
-| Presentation | Server-rendered version footer on every route, `/api/version` |
+| Presentation | Client-rendered footer and header badge on every route, `/api/version` |
 | Releases | SemVer; changes recorded in [CHANGELOG.md](CHANGELOG.md) |
 | Public-ready | Not claimed: authentication and HTTPS are required before public exposure |
 
@@ -145,6 +165,7 @@ old metadata inodes if Steam replaces files during an update. Other home data
 remains hidden. See [systemd sandboxing](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html#ProtectHome=).
 
 Implementation references: [Satisfactory HTTPS API](https://satisfactory.wiki.gg/wiki/Dedicated_servers/HTTPS_API)
-for live game state, [MDN hidden](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Global_attributes/hidden)
-for completed status removal. The loading bug was lifecycle state left set after
-rendering, not an API polling failure or CSS overriding the hidden attribute.
+for live game state. In the React frontend, every fetch goes through one
+`useApi` hook that always resolves loading and error state, so a page can never
+strand a spinner (the original vanilla app left lifecycle state set after
+rendering — see the loading-bug history in [CHANGELOG.md](CHANGELOG.md)).

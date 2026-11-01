@@ -1,0 +1,41 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+
+/** Fetch a resource, exposing loading/error/refetch and a polling interval.
+    Keeps the previous data visible while refreshing so the UI never blanks. */
+export function useApi<T>(fn: () => Promise<T>, deps: unknown[] = [], pollMs = 0) {
+  const [data, setData] = useState<T | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [tick, setTick] = useState(0);
+  const fnRef = useRef(fn);
+  fnRef.current = fn;
+
+  const run = useCallback(async () => {
+    try {
+      const result = await fnRef.current();
+      setData(result);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    (async () => { if (alive) await run(); })();
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+
+  useEffect(() => {
+    if (!pollMs) return;
+    const id = setInterval(run, pollMs);
+    return () => clearInterval(id);
+  }, [pollMs, run]);
+
+  const refresh = useCallback(() => { run(); setTick((t) => t + 1); }, [run]);
+  return { data, error, loading, refresh, tick, setData };
+}

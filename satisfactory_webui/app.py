@@ -170,6 +170,43 @@ def _send_file(handler, path, content_type):
     handler.wfile.write(body)
 
 
+ASSET_TYPES = {
+    ".js": "application/javascript; charset=utf-8",
+    ".mjs": "application/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".html": "text/html; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".ico": "image/x-icon",
+    ".avif": "image/avif",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+    ".ttf": "font/ttf",
+    ".map": "application/json; charset=utf-8",
+}
+
+
+def _send_asset(handler, path):
+    """Serve a built frontend asset from web/app/ with a strict allowlist.
+
+    The path is resolved inside the asset root and rejected if it escapes, so
+    traversal (../, absolute, symlink) can never reach outside the build dir.
+    """
+    rel = path[len("/assets/"):]
+    root = os.path.realpath(os.path.join(WEB_DIR, "app", "assets"))
+    target = os.path.realpath(os.path.join(root, rel))
+    if not (target == root or target.startswith(root + os.sep)):
+        _send_json(handler, {"error": "not found"}, 404)
+        return
+    content_type = ASSET_TYPES.get(os.path.splitext(target)[1].lower(), "application/octet-stream")
+    _send_file(handler, target, content_type)
+
+
 def _read_body(handler):
     length = int(handler.headers.get("Content-Length", 0) or 0)
     if length > 65536 or length < 0:
@@ -464,20 +501,15 @@ class Handler(BaseHTTPRequestHandler):
             with open(os.path.join(WEB_DIR, "credits.json"), encoding="utf-8") as f:
                 _send_json(self, json.load(f))
         elif path == "/":
-            _send_file(self, os.path.join(WEB_DIR, "index.html"), "text/html; charset=utf-8")
-        elif path == "/app.js":
-            _send_file(self, os.path.join(WEB_DIR, "app.js"), "application/javascript; charset=utf-8")
-        elif path == "/style.css":
-            _send_file(self, os.path.join(WEB_DIR, "style.css"), "text/css; charset=utf-8")
-        elif path == "/fx.css":
-            _send_file(self, os.path.join(WEB_DIR, "fx.css"), "text/css; charset=utf-8")
-        elif path == "/fx.js":
-            _send_file(self, os.path.join(WEB_DIR, "fx.js"), "application/javascript; charset=utf-8")
+            _send_file(self, os.path.join(WEB_DIR, "app", "index.html"), "text/html; charset=utf-8")
+        elif path.startswith("/assets/"):
+            _send_asset(self, path)
         elif path.startswith("/api/"):
             _send_json(self, {"error": "not found"}, 404)
         else:
-            # SPA fallback: any non-API path serves the single-page app shell.
-            _send_file(self, os.path.join(WEB_DIR, "index.html"), "text/html; charset=utf-8")
+            # SPA fallback: any non-API, non-asset path serves the app shell.
+            # Client-side routing (History API) depends on this.
+            _send_file(self, os.path.join(WEB_DIR, "app", "index.html"), "text/html; charset=utf-8")
 
     def do_POST(self):
         if not self._check():

@@ -4,6 +4,30 @@ All notable changes to the Satisfactory WebUI are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); versioning is SemVer
 (`__version__` in `satisfactory_webui/__init__.py` is the single source of truth).
 
+## [0.5.0] - 2026-11-01
+
+### Changed
+- **Frontend rebuilt as a React 19 + TypeScript single-page app** (Vite 7,
+  Tailwind CSS 4, Motion, Recharts, lucide-react), replacing the vanilla
+  HTML/CSS/JS pages. The bundled output is committed to
+  `satisfactory_webui/web/app/` and served by the same stdlib server, so the
+  target host still needs no Node toolchain at runtime.
+- New interaction layer: client-side routing with animated page transitions,
+  a Ctrl+K command palette, live polling with animated counters, interactive
+  charts with range windows, and an explicit confirmation dialog for every
+  destructive action.
+- `app.py` now serves `/assets/*` through a dedicated handler with an extension
+  allowlist and realpath containment (traversal rejected with 404), and serves
+  the built SPA shell as the fallback for client-side routes.
+
+### Added
+- `frontend/` (Vite project) committed alongside the built output; see README
+  for the build command.
+
+### Notes
+- No game mod is installed or required; the FRM data pages remain out of scope.
+- CSP is unchanged (`'self'`, no inline); the build emits no inline script/style.
+
 ## [0.4.0] - 2026-10-31
 
 ### Added
