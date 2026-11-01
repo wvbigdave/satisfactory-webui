@@ -48,10 +48,21 @@ test("bundled CSS carries the ported visual effects and reduced-motion guards", 
   assert.ok(css.includes("prefers-reduced-motion"), "effects must honour prefers-reduced-motion");
 });
 
-test("bundled JS is a real application bundle, not a placeholder", () => {
-  const jsFile = fs.readdirSync(ASSETS).find((f) => f.endsWith(".js"));
-  assert.ok(jsFile, "a built JS bundle must exist");
-  const js = read(path.join(ASSETS, jsFile));
-  assert.ok(js.length > 100000, "bundle looks too small to be the real app");
-  assert.ok(js.includes("root"), "bundle should reference the React mount point");
+test("entry bundle is a real application bundle, not a placeholder", () => {
+  const html = read(INDEX);
+  const entry = /<script type="module"[^>]+src="\/assets\/([^"]+\.js)"/.exec(html);
+  assert.ok(entry, "the shell must load a module entry script");
+  const js = read(path.join(ASSETS, entry[1]));
+  assert.ok(js.length > 100000, `entry bundle looks too small: ${entry[1]} (${js.length} bytes)`);
+  assert.ok(js.includes("root"), "entry bundle should reference the React mount point");
+});
+
+test("code splitting produced route chunks", () => {
+  // Route-level splitting is a deliberate optimisation: the entry must NOT be
+  // the only JS file, or every page is paying for every other page.
+  const jsFiles = fs.readdirSync(ASSETS).filter((f) => f.endsWith(".js"));
+  assert.ok(jsFiles.length > 3, `expected several JS chunks, found ${jsFiles.length}`);
+  for (const f of jsFiles) {
+    assert.ok(fs.statSync(path.join(ASSETS, f)).size > 50, `suspiciously small chunk: ${f}`);
+  }
 });

@@ -133,6 +133,22 @@ regenerated `web/app/` in the same commit (hashed asset filenames change).
 `realpath` containment — traversal is rejected with 404. The build emits no
 inline script or style, so the `'self'` CSP is unchanged.
 
+### Branding and live data
+
+- **Branding** (`/branding`) stores name, tagline, accent colour and logo in the
+  systemd StateDirectory (`/var/lib/satisfactory-webui/branding.json` plus
+  `branding/logo.<ext>`), so it survives deploys. `GET /api/branding` reads it,
+  `POST /api/branding` writes it (CSRF required, ≤1 MiB body for the upload),
+  and `GET /api/logo` serves the uploaded image with a sandboxing CSP. The
+  bundled FICSIT emblem is the default placeholder — see THIRD_PARTY_NOTICES.md
+  for its trademark note — and any custom logo or text mark supersedes it.
+- **Live streaming**: `GET /api/stream` is a Server-Sent Events endpoint that
+  pushes the overview snapshot every 3 s and closes after ~10 minutes so the
+  worker thread is not held indefinitely; the browser reconnects automatically.
+  The UI shows a LIVE badge while streaming and silently falls back to polling.
+  Note that a browser automation tool waiting on a page "load" event can appear
+  to hang while the stream is open — navigate on a timer instead.
+
 ## Versioning
 
 | Policy | Detail |

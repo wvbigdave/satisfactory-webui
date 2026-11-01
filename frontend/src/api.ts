@@ -111,6 +111,14 @@ export interface AboutData {
 export interface Credit { name: string; url: string; revision: string; licenseName: string; license: string; use: string }
 export interface CreditsData { note?: string; projects: Credit[] }
 
+export interface Branding {
+  name: string;
+  tagline: string;
+  mark: string;
+  accent: string;
+  logo: string | null;
+}
+
 export interface LogsData { text: string }
 
 let csrfToken = "";
@@ -149,6 +157,9 @@ export const api = {
   about: () => getJSON<AboutData>("/api/about"),
   backups: () => getJSON<BackupsData>("/api/backups"),
   credits: () => getJSON<CreditsData>("/api/credits"),
+  branding: () => getJSON<Branding>("/api/branding"),
+  saveBranding: (payload: Partial<Branding> & { logoDataUrl?: string; clearLogo?: boolean }) =>
+    postJSON<Branding>("/api/branding", payload),
   applyOptions: (updated: Record<string, string>) => postJSON("/api/apply-options", { updated }),
   applyAdvanced: (updated: Record<string, string>) => postJSON("/api/apply-advanced", { updated }),
   saveNow: (name: string) => postJSON("/api/save", { name }),

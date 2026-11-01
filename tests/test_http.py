@@ -95,7 +95,6 @@ class HTTPTests(unittest.TestCase):
         import re
         refs = re.findall(r'(?:src|href)="(/assets/[^"]+)"', shell)
         self.assertTrue(refs, 'the shell must reference bundled assets')
-        seen = set()
         for ref in refs:
             with self.get(ref) as r:
                 body = r.read()
@@ -103,12 +102,15 @@ class HTTPTests(unittest.TestCase):
                 self.assertNotIn(b'id="root"', body, 'asset must not be the SPA shell')
                 if ref.endswith('.js'):
                     self.assertEqual(ctype, 'application/javascript; charset=utf-8')
-                    self.assertGreater(len(body), 100000)
+                    self.assertGreater(len(body), 200)
                 elif ref.endswith('.css'):
                     self.assertEqual(ctype, 'text/css; charset=utf-8')
                     self.assertIn(b'prefers-reduced-motion', body)
-                seen.add(ref)
-        self.assertEqual(len(seen), len(refs))
+        # The entry bundle is split from its lazy chunks but must still be real.
+        entry = re.search(r'<script type="module"[^>]+src="(/assets/[^"]+\.js)"', shell)
+        assert entry is not None, 'the shell must load a module entry script'
+        with self.get(entry.group(1)) as r:
+            self.assertGreater(len(r.read()), 100000, 'entry bundle looks like a stub')
 
     def test_asset_path_traversal_is_rejected(self):
         for bad in ['/assets/../../etc/passwd', '/assets/..%2f..%2fetc%2fpasswd',

@@ -66,6 +66,18 @@ this host — no CDN, no third-party runtime dependency. Exact pinned versions a
 in `frontend/package.json`; the committed build output lives in
 `satisfactory_webui/web/app/`.
 
+## FICSIT emblem (default placeholder logo)
+
+- Source: https://satisfactory.wiki.gg/wiki/File:FICSIT_Inc..png (retrieved 2026-11-01)
+- Bundled at `frontend/src/assets/ficsit-mark.png`, recoloured for the dark tile.
+- **The FICSIT name and emblem are trademarks of Coffee Stain Studios AB.** This
+  console is a private, LAN-only tool for one self-hosted Satisfactory server;
+  the emblem is used only as the default placeholder brand mark. It is not sold,
+  redistributed as a product, or used to imply endorsement, and it is bundled
+  locally rather than hotlinked.
+- Fully replaceable: upload your own logo or set a short text mark on the
+  **Branding & logo** page, which supersedes the bundled artwork.
+
 ## Excluded source
 
 No game mod (FRM or SML) is installed or required. Factory production, power, map, inventories, vehicles and named player telemetry remain unavailable because they are not exposed by the vanilla dedicated-server HTTPS API. Player names and unique-player counts are not reconstructed from unreliable logs.

@@ -4,6 +4,28 @@ All notable changes to the Satisfactory WebUI are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); versioning is SemVer
 (`__version__` in `satisfactory_webui/__init__.py` is the single source of truth).
 
+## [0.6.0] - 2026-11-01
+
+### Added
+- **Branding & logo** (`/branding`): customizable console name, tagline, accent
+  colour and logo, persisted in the service StateDirectory and applied across the
+  whole UI (header tile, sidebar, hero and theme accent). Backend in
+  `satisfactory_webui/branding.py`; routes `GET/POST /api/branding` and
+  `GET /api/logo`. Uploads are validated (raster/SVG, ≤512 KiB) and the logo is
+  served with a sandboxing CSP.
+- **Live streaming**: `GET /api/stream` pushes the overview snapshot over
+  Server-Sent Events every 3 s. The UI shows a LIVE badge and falls back to
+  polling automatically if the stream cannot be established.
+- Default placeholder mark: the FICSIT emblem, credited with its provenance and
+  trademark note and replaceable at any time in Branding & logo.
+
+### Changed
+- **Frontend code splitting**: routes are lazy-loaded and `recharts`/`motion` are
+  separate vendor chunks, so the initial page load dropped from ~235 kB to
+  ~129 kB gzip; charts stream in after the metrics paint.
+- Removed the repeated "no game mods / nothing for players to install" notice
+  from the interface — it now appears once, as provenance, on the Credits page.
+
 ## [0.5.0] - 2026-11-01
 
 ### Changed

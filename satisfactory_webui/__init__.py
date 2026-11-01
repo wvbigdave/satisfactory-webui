@@ -8,4 +8,4 @@ Versioning scheme (SemVer; tracked in CHANGELOG.md):
 __version__ is the single source of truth: served at GET /api/version and
 rendered in every page footer. Bump it in the same commit as the change.
 """
-__version__ = "0.5.0"
+__version__ = "0.6.0"

@@ -19,7 +19,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
 from . import __version__
-from . import api, control, fields, monitor, archives
+from . import api, control, fields, monitor, archives, branding
 
 # --- Configuration (overridable via environment) ---------------------------
 BIND = os.environ.get("SATISFACTORY_BIND", "192.168.4.60")
@@ -207,10 +207,47 @@ def _send_asset(handler, path):
     _send_file(handler, target, content_type)
 
 
-def _read_body(handler):
+def _send_logo(handler):
+    """Serve the operator-supplied branding logo from the state directory.
+
+    The logo is untrusted input rendered through <img>, so it is never parsed as
+    a document by the app. As defence in depth an explicit sandboxing CSP is
+    added for the case where this URL is opened directly (the global policy
+    already blocks inline script; this removes script entirely).
+    """
+    content_type = branding.load().get("logo")
+    path = branding.logo_path(content_type) if content_type else None
+    if not path:
+        _send_json(handler, {"error": "no logo"}, 404)
+        return
+    try:
+        with open(path, "rb") as f:
+            body = f.read()
+    except OSError:
+        _send_json(handler, {"error": "no logo"}, 404)
+        return
+    handler.send_response(200)
+    handler.send_header("Content-Type", content_type)
+    handler.send_header("Cache-Control", "no-store")
+    handler.send_header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
+    handler.send_header("Content-Length", str(len(body)))
+    handler.end_headers()
+    handler.wfile.write(body)
+
+
+def _post_branding(body):
+    try:
+        return branding.save(body), 200
+    except ValueError as e:
+        return {"error": str(e)}, 400
+    except OSError as e:
+        return {"error": f"could not persist branding: {e}"}, 500
+
+
+def _read_body(handler, limit=65536):
     length = int(handler.headers.get("Content-Length", 0) or 0)
-    if length > 65536 or length < 0:
-        raise ValueError("request body exceeds 64 KiB")
+    if length > limit or length < 0:
+        raise ValueError(f"request body exceeds {limit // 1024} KiB")
     if length <= 0:
         return {}
     raw = handler.rfile.read(length)
@@ -454,6 +491,31 @@ class Handler(BaseHTTPRequestHandler):
             return False
         return True
 
+    def _stream(self):
+        """Server-sent events: push the overview snapshot on an interval.
+
+        Each connection reuses the cached poll state, so this is cheap. The
+        stream closes after ~10 minutes and the browser reconnects, which also
+        bounds how long a worker thread is held. Nothing here mutates state.
+        """
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.close_connection = True
+        deadline = time.monotonic() + 600
+        try:
+            self.wfile.write(b"retry: 3000\n\n")
+            self.wfile.flush()
+            while time.monotonic() < deadline:
+                payload = json.dumps(_route_overview(), separators=(",", ":"))
+                self.wfile.write(f"event: overview\ndata: {payload}\n\n".encode())
+                self.wfile.flush()
+                time.sleep(3)
+        except (BrokenPipeError, ConnectionResetError, TimeoutError, OSError):
+            pass
+
     def do_GET(self):
         if not self._check():
             return
@@ -500,6 +562,12 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/credits":
             with open(os.path.join(WEB_DIR, "credits.json"), encoding="utf-8") as f:
                 _send_json(self, json.load(f))
+        elif path == "/api/branding":
+            _send_json(self, branding.load())
+        elif path == "/api/logo":
+            _send_logo(self)
+        elif path == "/api/stream":
+            self._stream()
         elif path == "/":
             _send_file(self, os.path.join(WEB_DIR, "app", "index.html"), "text/html; charset=utf-8")
         elif path.startswith("/assets/"):
@@ -521,8 +589,10 @@ class Handler(BaseHTTPRequestHandler):
             _send_json(self, {"error": "invalid CSRF token"}, 403)
             return
         path = urlparse(self.path).path
+        # Branding accepts a logo upload, so it gets a larger bounded body.
+        limit = 1024 * 1024 if path == "/api/branding" else 65536
         try:
-            body = _read_body(self)
+            body = _read_body(self, limit)
         except (ValueError, TypeError) as e:
             self.close_connection = True
             _send_json(self, {"error": str(e)}, 400)
@@ -539,6 +609,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/service": _post_service,
             "/api/backup": _post_backup,
             "/api/remove-backup": _post_remove_backup,
+            "/api/branding": _post_branding,
         }
         fn = routes.get(path)
         if not fn:

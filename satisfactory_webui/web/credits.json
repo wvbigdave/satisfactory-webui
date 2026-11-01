@@ -48,6 +48,14 @@
       "licenseName": "MIT and ISC (per package)",
       "license": "The console UI is built with open-source libraries. Each is used unmodified under its own license:\n\n  react 19.3.1, react-dom 19.3.1 \u2014 MIT \u2014 \u00a9 Meta Platforms, Inc. and affiliates\n  motion 12.43.0 \u2014 MIT\n  recharts 3.10.1 \u2014 MIT\n  lucide-react 0.545.0 \u2014 ISC \u2014 \u00a9 Lucide Contributors\n  tailwindcss 4.3.3, @tailwindcss/vite 4.3.3 \u2014 MIT \u2014 \u00a9 Tailwind Labs, Inc.\n\nBuild-time only (not shipped as runtime code):\n  vite 7.3.7, @vitejs/plugin-react 5.2.0 \u2014 MIT\n  typescript 5.9.3 \u2014 Apache-2.0 \u2014 \u00a9 Microsoft Corporation\n\nFull license texts for each package are retained in the frontend dependency tree under node_modules/<package>/LICENSE. No library code was modified. The compiled bundle is served from this host; there is no CDN or third-party runtime dependency.",
       "use": "Runtime UI framework and components for the React single-page console (layout, routing, charts, icons, styling). Used as dependencies, unmodified."
+    },
+    {
+      "name": "FICSIT emblem \u2014 default placeholder logo",
+      "url": "https://satisfactory.wiki.gg/wiki/File:FICSIT_Inc..png",
+      "revision": "Satisfactory Wiki file, retrieved 2026-11-01",
+      "licenseName": "Trademark of Coffee Stain Studios \u2014 placeholder use",
+      "license": "The FICSIT name and emblem are trademarks of Coffee Stain Studios AB and are part of the Satisfactory game. This console is a private, LAN-only tool for one self-hosted Satisfactory server, and the emblem is used only as the default placeholder on the brand tile. It is not sold, redistributed as a product, or used to imply endorsement. It is bundled locally (frontend/src/assets/ficsit-mark.png, tinted to suit the dark tile) rather than hotlinked. Replace it at any time from the Branding & logo page by uploading your own image or setting a short text mark; doing so removes the bundled artwork from the running UI.",
+      "use": "Default placeholder brand mark, recoloured for the dark tile. Fully replaceable by the operator."
     }
   ]
 }

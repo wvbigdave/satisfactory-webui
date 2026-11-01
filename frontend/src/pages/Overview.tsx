@@ -1,14 +1,23 @@
 import { RefreshCw, Play, RotateCw, Square } from "lucide-react";
 import { motion } from "motion/react";
 import type { CSSProperties } from "react";
-import { api, type Overview as OverviewData } from "../api";
-import { Heatmap, TelemetryChart } from "../components/charts";
+import { Suspense, lazy } from "react";
+import { api, type Branding, type Overview as OverviewData } from "../api";
 import { PageTitle } from "../components/Layout";
 import { Button, Chip, ErrorBox, Gauge, KV, Loading, Metric, Panel, SectionHead, StatusPill, useConfirm, useToast } from "../components/ui";
 import { fmtBytes, fmtDuration, fmtTime, objectName, phaseName } from "../lib/format";
-import { useApi } from "../lib/useApi";
+import { useLive } from "../lib/useApi";
 
-function Hero({ name, online, health }: { name: string; online: boolean; health: string }) {
+/* Charts pull in recharts (~110 kB gzip). Loading them lazily lets the metrics,
+   progression and controls paint immediately while the charts stream in. */
+const TelemetryChart = lazy(() => import("../components/charts").then((m) => ({ default: m.TelemetryChart })));
+const Heatmap = lazy(() => import("../components/charts").then((m) => ({ default: m.Heatmap })));
+
+const ChartFallback = () => (
+  <div className="grid h-[190px] place-items-center text-[11px] text-muted">Loading chart…</div>
+);
+
+function Hero({ name, tagline, online, health, live }: { name: string; tagline: string; online: boolean; health: string; live: boolean }) {
   return (
     <Panel shine className="relative mb-5 !border-accent2/60 overflow-hidden">
       <div className="ripples" aria-hidden>
@@ -18,18 +27,21 @@ function Hero({ name, online, health }: { name: string; online: boolean; health:
       </div>
       <div className="relative z-[1] flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.14em] text-muted">Vanilla / Linux operations</p>
+          <p className="text-[10px] uppercase tracking-[0.14em] text-muted">Pioneer console / dedicated server</p>
           <h2 className="mt-1 text-[26px] font-semibold tracking-tight">{name}</h2>
-          <p className="mt-1 text-[13px] text-muted">One console for your dedicated server. No game mods, nothing for players to install.</p>
+          {tagline && <p className="mt-1 text-[13px] text-muted">{tagline}</p>}
         </div>
-        <StatusPill ok={online}>{health}</StatusPill>
+        <div className="flex items-center gap-2">
+          {live && <Chip tone="ok">LIVE</Chip>}
+          <StatusPill ok={online}>{health}</StatusPill>
+        </div>
       </div>
     </Panel>
   );
 }
 
-export default function Overview() {
-  const { data, error, loading, refresh, tick } = useApi<OverviewData>(api.overview, [], 4000);
+export default function Overview({ branding }: { branding: Branding }) {
+  const { data, error, loading, refresh, live } = useLive<OverviewData>(api.overview, [], 4000);
   const toast = useToast();
   const confirm = useConfirm();
 
@@ -61,8 +73,8 @@ export default function Overview() {
 
   return (
     <>
-      <PageTitle title="Overview" note={`Live state sampled ${new Date().toLocaleTimeString()} · auto-refresh 4s`} />
-      <Hero name={g.activeSessionName || "Dedicated server"} online={!!d.ok} health={d.health || "API offline"} />
+      <PageTitle title="Overview" note={`Live state sampled ${new Date().toLocaleTimeString()} · streaming`} />
+      <Hero name={g.activeSessionName || "Dedicated server"} tagline={branding.tagline} online={!!d.ok} health={d.health || "API offline"} live={live} />
       {!d.ok && <div className="mb-4"><ErrorBox message={`Server unreachable: ${d.error || "API unavailable"}`} /></div>}
 
       <div className="mb-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -75,8 +87,10 @@ export default function Overview() {
       <div className="mb-5 grid gap-5 lg:grid-cols-[1.5fr_1fr]">
         <Panel glow={false}>
           <SectionHead title="Server pulse" hint="Last 4 hours · 30-second samples · gaps stay unknown" />
-          <TelemetryChart samples={hist} field="tps" label="Tick rate" unit="TPS" color="green" />
-          <div className="mt-4"><TelemetryChart samples={hist} field="players" label="Concurrent players" unit="players" color="blue" height={150} digits={0} /></div>
+          <Suspense fallback={<ChartFallback />}>
+            <TelemetryChart samples={hist} field="tps" label="Tick rate" unit="TPS" color="green" />
+            <div className="mt-4"><TelemetryChart samples={hist} field="players" label="Concurrent players" unit="players" color="blue" height={150} digits={0} /></div>
+          </Suspense>
         </Panel>
 
         <Panel glow={false}>
@@ -125,7 +139,7 @@ export default function Overview() {
           </div>
           <div className="mt-4 flex items-center gap-2">
             <Button variant="ghost" onClick={refresh}><span className="inline-flex items-center gap-1.5"><RefreshCw size={12} /> Refresh now</span></Button>
-            <span className="text-[10px] text-muted">tick {tick}</span>
+            <span className="text-[10px] text-muted">{live ? "streaming live" : "polling"}</span>
           </div>
         </Panel>
       </div>
@@ -133,7 +147,7 @@ export default function Overview() {
       {d.history?.heatmap?.length ? (
         <Panel glow={false}>
           <SectionHead title="Player activity · UTC" hint="Mean observed concurrent players by weekday/hour over retained history." />
-          <Heatmap cells={d.history.heatmap} />
+          <Suspense fallback={<ChartFallback />}><Heatmap cells={d.history.heatmap} /></Suspense>
         </Panel>
       ) : null}
 
