@@ -85,6 +85,38 @@ class HTTPTests(unittest.TestCase):
             api.load_game('session', 'save')
             call.assert_called_once_with('LoadGame', {'SaveName':'save', 'EnableAdvancedGameSettings':False})
 
+    def test_visual_effects_assets_are_served_explicitly(self):
+        # The SPA fallback must NOT swallow the effect files: verify real content
+        # and correct MIME type for both, and that reduced-motion is honoured.
+        with self.get('/fx.css') as r:
+            body = r.read()
+            self.assertEqual(r.headers['Content-Type'], 'text/css; charset=utf-8')
+            self.assertIn(b'prefers-reduced-motion', body)
+            self.assertIn(b'fx-ripple-ring', body)
+            self.assertNotIn(b'id="view"', body)
+        with self.get('/fx.js') as r:
+            body = r.read()
+            self.assertEqual(r.headers['Content-Type'], 'application/javascript; charset=utf-8')
+            self.assertIn(b'__satisfactoryFx', body)
+            self.assertNotIn(b'id="view"', body)
+        with self.get('/') as r:
+            shell = r.read()
+            self.assertIn(b'/fx.css', shell)
+            self.assertIn(b'/fx.js', shell)
+
+    def test_credits_report_the_authorized_frm_reuse(self):
+        with self.get('/api/credits') as r:
+            data = json.load(r)
+        by_name = {p['name']: p for p in data['projects']}
+        frm = by_name.get('Bread-Ch4n/FRM-s-WebUI-Source')
+        assert frm is not None, 'FRM-s-WebUI-Source must be credited'
+        self.assertEqual(frm['revision'], '9f0d01340af1ad17cd6c835c575a6502175e923e')
+        # Honest provenance: no license file upstream, owner-authorized reuse.
+        self.assertIn('No license file', frm['licenseName'])
+        self.assertIn('authorized', frm['license'].lower())
+        # The data pages must be explicitly stated as NOT ported.
+        self.assertIn('NOT ported', frm['use'])
+
 
 if __name__ == '__main__':
     unittest.main()

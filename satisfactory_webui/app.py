@@ -469,6 +469,10 @@ class Handler(BaseHTTPRequestHandler):
             _send_file(self, os.path.join(WEB_DIR, "app.js"), "application/javascript; charset=utf-8")
         elif path == "/style.css":
             _send_file(self, os.path.join(WEB_DIR, "style.css"), "text/css; charset=utf-8")
+        elif path == "/fx.css":
+            _send_file(self, os.path.join(WEB_DIR, "fx.css"), "text/css; charset=utf-8")
+        elif path == "/fx.js":
+            _send_file(self, os.path.join(WEB_DIR, "fx.js"), "application/javascript; charset=utf-8")
         elif path.startswith("/api/"):
             _send_json(self, {"error": "not found"}, 404)
         else:

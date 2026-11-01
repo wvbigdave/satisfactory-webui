@@ -1,0 +1,190 @@
+/* Satisfactory WebUI — visual effects layer (fx.css)
+ *
+ * Visual effects adapted from Bread-Ch4n/FRM-s-WebUI-Source (pinned revision
+ * 9f0d01340af1ad17cd6c835c575a6502175e923e), whose src/components/magicui/*
+ * components and .card:hover glow are reused as design/technique. Dave (repo
+ * owner) authorized reuse on 2026-10-31 even though the upstream ships no
+ * license file. Ported from the React/TypeScript + Motion originals to plain,
+ * dependency-free CSS here (no framework, no CDN). The FRM data pages are NOT
+ * ported: those poll the FRM game mod, which is not installed.
+ *
+ * All effects respect prefers-reduced-motion.
+ */
+
+/* ---------- Animated grid pattern background (from magicui/animated-grid-pattern) ---------- */
+body {
+  background:
+    radial-gradient(1200px 700px at 50% -10%, rgba(232,163,97,0.08), transparent 60%),
+    radial-gradient(900px 600px at 90% 110%, rgba(202,109,53,0.06), transparent 55%),
+    linear-gradient(#101318, #101318);
+  background-attachment: fixed;
+}
+
+.fx-grid-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.5;
+  background-image:
+    linear-gradient(to right, rgba(232,163,97,0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(232,163,97,0.05) 1px, transparent 1px);
+  background-size: 42px 42px;
+  -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 78%);
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 78%);
+  animation: fx-grid-drift 60s linear infinite;
+}
+
+@keyframes fx-grid-drift {
+  to { background-position: 42px 42px; }
+}
+
+/* ---------- MagicCard mouse-following glow (from magicui/magic-card) ---------- */
+.fx-magic {
+  position: relative;
+  border-radius: inherit;
+  overflow: hidden;
+}
+
+.fx-magic::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  background: radial-gradient(
+    240px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(232,163,97,0.28),
+    rgba(202,109,53,0.10) 45%,
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.fx-magic:hover::before,
+.fx-magic:focus-within::before {
+  opacity: 1;
+}
+
+.fx-magic > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------- Shine border (from magicui/shine-border) ---------- */
+.fx-shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.fx-shine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: radial-gradient(60% 60% at 50% 50%, transparent 35%, #e8a361 70%, #ca6d35, transparent);
+  background-size: 300% 300%;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  animation: fx-shine 14s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes fx-shine {
+  0% { background-position: 0% 0%; }
+  50% { background-position: 100% 100%; }
+  100% { background-position: 0% 0%; }
+}
+
+/* ---------- Card hover glow + gentle scale (from globals.css .card:hover) ---------- */
+.fx-glow {
+  transition: box-shadow 0.6s ease, transform 0.6s ease, border-color 0.3s ease;
+}
+
+.fx-glow:hover {
+  box-shadow: 0 0 6px #e8a361, 0 0 12px #e8a361, 0 0 22px #ca6d35, 0 0 34px #ca6d35;
+  transform: scale(1.004);
+  border-color: #ca6d35;
+}
+
+/* Site-wide card glow, mirroring the upstream globals.css .card:hover effect. */
+.card {
+  position: relative;
+  transition: box-shadow 0.6s ease, transform 0.6s ease, border-color 0.3s ease;
+}
+
+.card:hover {
+  box-shadow: 0 0 5px #e8a361, 0 0 11px #e8a361, 0 0 22px #ca6d35, 0 0 32px #ca6d35;
+  border-color: #ca6d35;
+  transform: scale(1.002);
+  z-index: 2;
+}
+
+/* Hero treatment: shine border + ripple rings behind the title. */
+.hero { position: relative; }
+.hero.fx-shine { border-color: #ca6d35; }
+.hero.fx-shine .hero-content,
+.hero > *:not(.fx-hero-rings) { position: relative; z-index: 1; }
+
+.fx-hero-rings {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+  border-radius: inherit;
+}
+
+/* ---------- Ripple rings (from magicui/ripple) ---------- */
+.fx-ripple {
+  position: relative;
+  overflow: hidden;
+}
+
+.fx-ripple-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(232,163,97,0.30);
+  border-radius: 50%;
+  box-shadow: 0 0 18px rgba(202,109,53,0.20);
+  pointer-events: none;
+  animation: fx-ripple 8s ease-out infinite;
+  animation-delay: var(--r, 0s);
+}
+
+.fx-ripple-ring:nth-child(1) { width: 120px;  height: 120px;  --r: 0s;   opacity: 0.30; }
+.fx-ripple-ring:nth-child(2) { width: 220px;  height: 220px;  --r: 1.4s; opacity: 0.20; }
+.fx-ripple-ring:nth-child(3) { width: 320px;  height: 320px;  --r: 2.8s; opacity: 0.14; }
+.fx-ripple-ring:nth-child(4) { width: 420px;  height: 420px;  --r: 4.2s; opacity: 0.09; }
+
+@keyframes fx-ripple {
+  0%   { transform: translate(-50%, -50%) scale(0.6); opacity: 0; }
+  12%  { opacity: inherit; }
+  100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
+}
+
+/* ---------- Spark / accent pulses ---------- */
+.fx-pulse {
+  animation: fx-pulse 2.6s ease-in-out infinite;
+}
+
+@keyframes fx-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+/* ---------- Reduced-motion: keep everything static & readable ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .fx-grid-bg { animation: none; }
+  .fx-shine::after { animation: none; }
+  .fx-glow { transition: box-shadow 0.3s ease; transform: none !important; }
+  .fx-ripple-ring { animation: none; display: none; }
+  .fx-pulse { animation: none; }
+}

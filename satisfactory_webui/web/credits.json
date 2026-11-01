@@ -1,4 +1,5 @@
 {
+  "note": "Reuse is credited below with pinned revisions. License texts are preserved in full. FRM-s-WebUI-Source ships without a license file; reuse was authorized by the repo owner (Dave) on 2026-10-31 and is limited to its self-contained visual/UI effects — no FRM game mod, no data endpoints, no React stack.",
   "projects": [
     {
       "name": "Svennix/Satisfactory_Ultimate_Dashboard",
@@ -31,6 +32,14 @@
       "licenseName": "MIT",
       "license": "MIT License\n\nCopyright (c) 2024 Jacob\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n",
       "use": "Adapted code: pyfactorybridge/__init__.py load_game request properties \u2192 satisfactory_webui/api.py load_game, explicit SaveName and EnableAdvancedGameSettings=False; session argument retained for compatibility. Download method reviewed; actual snapshots/downloads here use original constrained read-only Linux file access, not requests dependencies."
+    },
+    {
+      "name": "Bread-Ch4n/FRM-s-WebUI-Source",
+      "url": "https://github.com/Bread-Ch4n/FRM-s-WebUI-Source",
+      "revision": "9f0d01340af1ad17cd6c835c575a6502175e923e",
+      "licenseName": "No license file (reuse authorized by repo owner)",
+      "license": "This upstream repository ships without a license file. Its author (Bread-Ch4n) publishes it publicly for the Ficsit Remote Monitoring Web UI. Reuse of its self-contained visual/UI components in this console was explicitly authorized by the owner of this repository (Dave) on 2026-10-31. Only the framework-independent visual effect techniques were ported; no FRM game mod, FRM data endpoint, build step or React/Next runtime was adopted. If the upstream later publishes a license, it supersedes this note.",
+      "use": "Adapted techniques \u2192 satisfactory_webui/web/fx.css and fx.js: (1) magic-card.tsx mouse-following radial-gradient glow (handleMouseMove / mouseout), re-implemented in vanilla JS; (2) shine-border.tsx animated gradient border; (3) animated-grid-pattern.tsx / dot-pattern.tsx grid and dot backgrounds; (4) ripple.tsx concentric pulsing rings; (5) globals.css .card:hover orange outer-glow + subtle scale, applied site-wide. All effects honour prefers-reduced-motion. Data pages (power, production, map, drone, resource sink) were NOT ported: they require the FRM game mod, which is not installed and is not required of any player."
     }
   ]
 }

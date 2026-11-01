@@ -4,6 +4,24 @@ All notable changes to the Satisfactory WebUI are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); versioning is SemVer
 (`__version__` in `satisfactory_webui/__init__.py` is the single source of truth).
 
+## [0.4.0] - 2026-10-31
+
+### Added
+- Visual effects layer (`web/fx.css`, `web/fx.js`), re-implementing the
+  self-contained MagicUI techniques from Bread-Ch4n/FRM-s-WebUI-Source as plain,
+  dependency-free CSS/JS: mouse-following MagicCard glow, ShineBorder animated
+  border on heroes, animated grid background, ripple rings and a site-wide
+  orange card hover glow. All effects honour `prefers-reduced-motion`.
+- `/fx.css` and `/fx.js` are served explicitly (same-origin, CSP-safe).
+- FRM-s-WebUI-Source credited in `credits.json`, the visible `/credits` page and
+  `THIRD_PARTY_NOTICES.md` at pinned revision, with an explicit reuse-
+  authorization note (upstream ships no license file; owner authorized reuse).
+
+### Notes
+- No game mod is installed or required. FRM data pages (power, production, map,
+  drone, resource sink) are intentionally not ported; the vanilla API cannot
+  supply their data.
+
 ## [0.3.0] - 2026-10-31
 
 ### Added

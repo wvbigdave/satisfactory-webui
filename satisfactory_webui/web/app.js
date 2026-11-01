@@ -59,7 +59,7 @@
   /* ---------- Overview ---------- */
   function renderOverview(d) {
     var g = d.state || {}, r = d.resources || {}, disk = d.disk || {}, sizes = d.saveStorage || {};
-    var html = '<section class="hero"><div><p class="eyebrow">VANILLA / LINUX OPERATIONS</p><h2>' + esc(g.activeSessionName || 'Dedicated server') + '</h2><p>One console. Your server. No game mods.</p></div><span class="status-pill ' + (d.ok ? 'ok' : 'bad') + '">' + esc(d.health || 'API offline') + '</span></section>';
+    var html = '<section class="hero fx-shine"><span class="fx-hero-rings" aria-hidden="true"><span class="fx-ripple-ring"></span><span class="fx-ripple-ring"></span><span class="fx-ripple-ring"></span><span class="fx-ripple-ring"></span></span><div class="hero-content"><p class="eyebrow">VANILLA / LINUX OPERATIONS</p><h2>' + esc(g.activeSessionName || 'Dedicated server') + '</h2><p>One console. Your server. No game mods.</p></div><span class="status-pill ' + (d.ok ? 'ok' : 'bad') + '">' + esc(d.health || 'API offline') + '</span></section>';
     if (!d.ok) html += '<p class="err">Server unreachable: ' + esc(d.error || 'API unavailable') + '</p>';
     html += '<div class="metric-grid">';
     html += metric('Connected players', g.numConnectedPlayers, 'of ' + (g.playerLimit == null ? '—' : g.playerLimit) + ' slots', 'blue', g.numConnectedPlayers, g.playerLimit);
@@ -337,7 +337,7 @@
     return '<div class="gauge ' + color + '"><div class="section-head"><span>' + esc(label) + '</span><b>' + (pct == null ? 'Unknown' : pct.toFixed(1) + '%') + '</b></div><progress max="100" value="' + (pct == null ? 0 : pct) + '" aria-label="' + esc(label) + '"></progress></div>';
   }
   function metric(label, value, detail, color, n, max) {
-    return '<section class="card metric ' + color + '"><p class="eyebrow">' + esc(label) + '</p><strong>' + esc(value == null ? '—' : value) + '</strong><p class="hint">' + esc(detail) + '</p>' + (n != null && max ? gauge(n, max, label + ' capacity', color) : '') + '</section>';
+    return '<section class="card metric ' + color + ' fx-magic fx-glow"><p class="eyebrow">' + esc(label) + '</p><strong>' + esc(value == null ? '—' : value) + '</strong><p class="hint">' + esc(detail) + '</p>' + (n != null && max ? gauge(n, max, label + ' capacity', color) : '') + '</section>';
   }
   function chart(rows, key, label, unit, color) {
     var valid = rows.filter(function (r) { return r[key] != null && Number.isFinite(r[key]); });
@@ -392,7 +392,7 @@
   }
   function loadHistory() { return loadPage('/api/history?hours=' + historyHours, renderHistory); }
   function renderBackups(d) {
-    var html = '<section class="hero"><div><p class="eyebrow">RECOVERY / LOCAL ARCHIVES</p><h2>Backup vault</h2><p>Manual snapshots. No automatic pruning. Original saves untouched.</p></div><a class="button" href="/saves">Choose a save →</a></section><section class="card"><h2>Archive capacity</h2>' + gauge(d.totalBytes || 0,d.maxBytes || 536870912,'Local backup storage','purple') + '<p class="hint">' + esc((d.files || []).length) + ' / ' + esc(d.maxFiles || 32) + ' files · ' + fmtBytes(d.totalBytes || 0) + ' / ' + fmtBytes(d.maxBytes || 536870912) + ' · per-file limit 64 MiB</p><p class="hint">' + esc(d.policy || '') + '</p><p class="hint">Snapshots are local copies, not off-host disaster recovery. Download important archives. Concurrently changing saves are rejected; this is not a forced game save.</p></section><section class="card"><h2>Snapshots</h2>';
+    var html = '<section class="hero fx-shine"><span class="fx-hero-rings" aria-hidden="true"><span class="fx-ripple-ring"></span><span class="fx-ripple-ring"></span><span class="fx-ripple-ring"></span><span class="fx-ripple-ring"></span></span><div class="hero-content"><p class="eyebrow">RECOVERY / LOCAL ARCHIVES</p><h2>Backup vault</h2><p>Manual snapshots. No automatic pruning. Original saves untouched.</p></div><a class="button" href="/saves">Choose a save →</a></section><section class="card"><h2>Archive capacity</h2>' + gauge(d.totalBytes || 0,d.maxBytes || 536870912,'Local backup storage','purple') + '<p class="hint">' + esc((d.files || []).length) + ' / ' + esc(d.maxFiles || 32) + ' files · ' + fmtBytes(d.totalBytes || 0) + ' / ' + fmtBytes(d.maxBytes || 536870912) + ' · per-file limit 64 MiB</p><p class="hint">' + esc(d.policy || '') + '</p><p class="hint">Snapshots are local copies, not off-host disaster recovery. Download important archives. Concurrently changing saves are rejected; this is not a forced game save.</p></section><section class="card"><h2>Snapshots</h2>';
     if (!(d.files || []).length) html += '<p class="empty">No snapshots yet. Use Snapshot beside a save on the Saves page.</p>';
     else {
       html += '<div class="table-scroll"><table><thead><tr><th>Archive</th><th>Size</th><th>Created</th><th>Actions</th></tr></thead><tbody>';
@@ -410,11 +410,11 @@
   function loadBackups() { return loadPage('/api/backups',renderBackups); }
   function loadCredits() {
     return loadPage('/api/credits',function (d) {
-      var html = '<section class="card"><h2>Built on community work</h2><p>This Linux console uses the vanilla dedicated-server HTTPS API. No FRM, SML, game mods or player installs. Reuse is credited below; complete upstream licenses are preserved.</p></section>';
+      var html = '<section class="card"><h2>Built on community work</h2><p>This Linux console uses the vanilla dedicated-server HTTPS API. No FRM, SML, game mods or player installs are required. Visual effects reuse the self-contained UI work of FRM\'s Web UI (authorized by its repo owner); data features that need a game mod remain out of scope. Reuse is credited below with pinned revisions, and complete upstream licenses are preserved where they exist.</p></section>';
       (d.projects || []).forEach(function (p) {
         html += '<section class="card"><h2><a href="' + esc(p.url) + '">' + esc(p.name) + '</a></h2><p>' + esc(p.use) + '</p>' + kv('Pinned revision',p.revision) + '<details><summary>' + esc(p.licenseName) + ' · full license</summary><pre class="license">' + esc(p.license) + '</pre></details></section>';
       });
-      html += '<section class="card"><h2>Deliberately not included</h2><p>FRM-s-WebUI-Source: no detected license, so no code copied. Factory production, power, map, inventories, vehicles and named player telemetry need mod APIs and remain unavailable. Windows PowerShell operations and third-party automatic restart/update/prune policies are not imported.</p></section>';
+      html += '<section class="card"><h2>Deliberately not included</h2><p>Factory production, power, map, inventories, vehicles and named player telemetry need game-mod APIs (FRM) and remain unavailable here. Windows PowerShell operations and third-party automatic restart/update/prune policies are not imported. No mod is installed and no player is asked to install one.</p></section>';
       view.innerHTML = html;
     });
   }

@@ -30,9 +30,23 @@ All upstreams were inspected at the pinned revisions below. Code reuse is explic
 - License: MIT; full original copyright/license in `licenses/PyFactoryBridge.LICENSE`.
 - Adapted code: pyfactorybridge/__init__.py load_game request properties → satisfactory_webui/api.py load_game, explicit SaveName and EnableAdvancedGameSettings=False; session argument retained for compatibility. Download method reviewed; actual snapshots/downloads here use original constrained read-only Linux file access, not requests dependencies.
 
+## Bread-Ch4n/FRM-s-WebUI-Source
+
+- Upstream: https://github.com/Bread-Ch4n/FRM-s-WebUI-Source
+- Pinned revision: `9f0d01340af1ad17cd6c835c575a6502175e923e`
+- License: **no license file is present in the upstream repository.** Reuse of its self-contained visual/UI components here was explicitly authorized by this repository's owner (Dave) on 2026-10-31. Where the upstream later publishes a license, that license supersedes this note.
+- Adapted techniques → `satisfactory_webui/web/fx.css` and `fx.js`:
+  - `src/components/magicui/magic-card.tsx` mouse-following radial-gradient glow (`handleMouseMove` / `mouseout`) → vanilla-JS `trackMouse` / `resetMouse`.
+  - `src/components/magicui/shine-border.tsx` animated gradient border → `.fx-shine`.
+  - `src/components/magicui/animated-grid-pattern.tsx` and `dot-pattern.tsx` grid/dot backgrounds → `.fx-grid-bg`.
+  - `src/components/magicui/ripple.tsx` concentric pulsing rings → `.fx-ripple-ring`.
+  - `src/app/css/globals.css` `.card:hover` orange outer-glow + subtle scale → site-wide `.card:hover`.
+- All effects honour `prefers-reduced-motion`. No React/Next/Motion runtime, Tailwind, build step or CDN was adopted; the effects are re-implemented as plain CSS plus a small dependency-free script.
+- Data pages (`power`, `overallprod`, `detailedprod`, `map`, `drone`, `resourcesink`) were **NOT** ported: they poll the FRM game mod's endpoints, which is not installed and is not required of any player.
+
 ## Excluded source
 
-FRM-s-WebUI-Source: no detected license; **no code copied**. No FRM or other game mod is installed or required. Player names, unique player counts, production, power, map, inventory and vehicle features are not invented or reconstructed from unreliable logs.
+No game mod (FRM or SML) is installed or required. Factory production, power, map, inventories, vehicles and named player telemetry remain unavailable because they are not exposed by the vanilla dedicated-server HTTPS API. Player names and unique-player counts are not reconstructed from unreliable logs.
 
 ## Implementation documentation
 

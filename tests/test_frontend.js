@@ -77,3 +77,27 @@ for (const path of ['/', '/saves', '/config', '/logs', '/about', '/history', '/b
     });
   }
 }
+test('overview hero carries the shine/ripple effect classes', async () => {
+  const app = boot('/', {ok: true, state: {}, history: {}, resources: {}, disk: {},
+    saveStorage: {}, serverVersion: {}});
+  await flush(); app.finish(); await flush();
+  const html = app.elements.view.innerHTML;
+  assert.ok(html.includes('hero fx-shine'), 'hero must use fx-shine');
+  assert.ok(html.includes('fx-ripple-ring'), 'hero must include ripple rings');
+  assert.ok(html.includes('fx-magic'), 'metric cards must use fx-magic');
+});
+test('credits page renders the authorized FRM reuse entry', async () => {
+  const app = boot('/credits', {projects: [{
+    name: 'Bread-Ch4n/FRM-s-WebUI-Source',
+    url: 'https://github.com/Bread-Ch4n/FRM-s-WebUI-Source',
+    revision: '9f0d01340af1ad17cd6c835c575a6502175e923e',
+    licenseName: 'No license file (reuse authorized by repo owner)',
+    license: 'Upstream ships without a license file; reuse authorized by the owner.',
+    use: 'Adapted techniques; data pages NOT ported.'}]});
+  await flush(); app.finish(); await flush();
+  const html = app.elements.view.innerHTML;
+  assert.ok(html.includes('Bread-Ch4n/FRM-s-WebUI-Source'), 'FRM must be credited');
+  assert.ok(html.includes('9f0d01340af1ad17cd6c835c575a6502175e923e'), 'pinned revision shown');
+  assert.ok(html.includes('No license file'), 'license status shown honestly');
+  assert.ok(html.includes('Deliberately not included'), 'exclusions stated');
+});
