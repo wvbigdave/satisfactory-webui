@@ -26,8 +26,14 @@ def validate(name):
 
 
 def _open(root, name):
-    validate(name)
-    fd = os.open(root / name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    # Accept either a full ".sav" filename or the bare save name the API lists
+    # (which has no extension); append ".sav" when missing, then validate the
+    # resolved name against the same strict path/traversal rules.
+    if not isinstance(name, str) or not name:
+        raise ValueError('Expected a .sav filename (maximum 180 characters)')
+    candidate = name if name.endswith('.sav') else name + '.sav'
+    candidate = validate(candidate)
+    fd = os.open(root / candidate, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     try:
         info = os.fstat(fd)
         if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_FILE_BYTES:

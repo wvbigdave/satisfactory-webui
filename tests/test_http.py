@@ -82,6 +82,21 @@ class HTTPTests(unittest.TestCase):
                 self.assertTrue((saves/'test.sav').exists())
                 self.assertEqual(archives.list_backups()['files'], [])
 
+    def test_snapshot_accepts_bare_save_name(self):
+        # The Saves page lists save names without the .sav suffix and calls
+        # /api/backup with exactly that; include the .sav when missing.
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d); saves=root/'saves'; backups=root/'backups'; saves.mkdir()
+            (saves/'test.sav').write_bytes(b'bare fixture')
+            with mock.patch.object(archives, 'SAVE_DIR', saves), mock.patch.object(archives, 'BACKUP_DIR', backups):
+                with self.post('/api/backup', {'name':'test'}) as r:
+                    result=json.load(r)
+                self.assertTrue(result['name'].endswith('.sav'))
+                with self.get('/api/download-backup?name='+result['name']) as r:
+                    self.assertEqual(r.read(), b'bare fixture')
+                with self.post('/api/remove-backup', {'name':result['name'], 'confirm':True}) as r:
+                    self.assertEqual(json.load(r)['removed'], result['name'])
+
     def test_load_request_is_explicitly_vanilla(self):
         with mock.patch.object(api, 'safe_call') as call:
             api.load_game('session', 'save')

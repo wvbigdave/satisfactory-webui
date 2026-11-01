@@ -8,14 +8,23 @@ All notable changes to the Satisfactory WebUI are recorded here. Format follows
 
 ### Added
 - **Backup vault manual snapshot control** (`/backups`): a "Create snapshot"
-  field at the top of the page backs up an existing save file by its save
-  name directly from the vault (Enter or button), with a working state and a
-  tip pointing to the per-save Snapshot button on Sessions & saves.
+  field at the top of the page backs up an existing save by its name directly
+  from the vault (Enter or button), with a working state and a tip pointing to
+  the per-save Snapshot button on Sessions & saves.
 
 ### Changed
 - **Configuration page cleanup**: removed the raw config-key line (e.g.
   `FG.WeatherPreset`) that rendered in monospace below every field — it added
   noise and the filter already matches by key, so nothing is lost.
+
+### Fixed
+- **Save-name resolution** (`archives._open`): the Sessions & saves page lists
+  save names without the `.sav` extension and passes them to the download and
+  Snapshot endpoints, but the archive layer strictly required a `.sav`
+  filename — so per-save **Download** and **Snapshot** returned HTTP 400. A
+  bare name is now resolved by appending `.sav` (after the same strict
+  path/traversal validation), so download and snapshots work from both the
+  Saves page and the new vault control.
 
 ## [0.6.1] - 2026-11-01
 
