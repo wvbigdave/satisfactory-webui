@@ -1,5 +1,5 @@
 import {
-  Activity, Archive, BookOpen, Cog, FileText, Gauge, LayoutDashboard, Palette, ScrollText, Search, Server,
+  Activity, Archive, BookOpen, Cog, FileText, Gauge, LayoutDashboard, Menu, Palette, ScrollText, Search, Server, X,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
@@ -87,9 +87,11 @@ export function Layout({
   branding: Branding;
 }) {
   const [palette, setPalette] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setPalette((v) => !v); }
+      if (e.key === "Escape") { setMobileOpen(false); setPalette(false); }
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
@@ -125,7 +127,46 @@ export function Layout({
           <StatusPill ok={online}>{online ? health || "Online" : "API offline"}</StatusPill>
           <span className="text-[11px] text-muted">v{version}</span>
         </div>
+        <button
+          onClick={() => setMobileOpen((v) => !v)}
+          aria-label={mobileOpen ? "Close navigation" : "Open navigation"}
+          aria-expanded={mobileOpen}
+          aria-controls="mobile-nav"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-edge bg-panel2/70 text-muted hover:border-accent hover:text-accent lg:hidden"
+        >
+          {mobileOpen ? <X size={17} /> : <Menu size={17} />}
+        </button>
       </header>
+
+      {mobileOpen && (
+        <motion.nav
+          id="mobile-nav"
+          initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.16 }}
+          className="absolute inset-x-0 top-[67px] z-20 border-b border-edge bg-[#10141b]/95 px-3 py-3 backdrop-blur lg:hidden"
+          aria-label="Primary navigation"
+        >
+          {NAV.map((n) => {
+            const head = n.group !== lastGroup ? n.group : null;
+            lastGroup = n.group;
+            const active = route === n.id;
+            return (
+              <div key={n.id}>
+                {head && <p className="px-3 pb-1 pt-3 text-[9px] font-bold uppercase tracking-[0.18em] text-muted/80">{head}</p>}
+                <button
+                  onClick={() => { go(n.id); setMobileOpen(false); }}
+                  className={[
+                    "flex w-full items-center gap-2.5 rounded-md px-3 py-2.5 text-left text-[13px] transition",
+                    active ? "bg-accent/10 text-accent" : "text-[#b6c1d0] hover:bg-panel2 hover:text-ink",
+                  ].join(" ")}
+                >
+                  {n.icon}{n.label}
+                </button>
+              </div>
+            );
+          })}
+        </motion.nav>
+      )}
 
       <div className="relative z-10 flex">
         <nav className="hidden w-[236px] shrink-0 border-r border-edge bg-[#10141b]/70 px-3 py-5 backdrop-blur lg:block">
