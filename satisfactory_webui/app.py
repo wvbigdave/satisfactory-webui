@@ -263,7 +263,12 @@ def _origin_ok(handler):
     if not origin:
         return True  # non-browser client; CSRF token still required on POST
     parsed = urlparse(origin)
-    return parsed.scheme == "http" and parsed.netloc == handler.headers.get("Host") and parsed.netloc in HOSTS
+    # Scheme is transport only: behind an HTTPS proxy the browser Origin is
+    # https while the app may still see http from nginx. The Origin netloc
+    # must still equal the Host header and be in the allowlist.
+    return (parsed.scheme in ("http", "https")
+            and parsed.netloc == handler.headers.get("Host")
+            and parsed.netloc in HOSTS)
 
 
 # --- Route handlers ---------------------------------------------------------

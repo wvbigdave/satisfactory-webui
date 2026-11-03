@@ -43,6 +43,16 @@ class HTTPTests(unittest.TestCase):
                 self.assertEqual(r.headers['X-Frame-Options'], 'DENY')
                 self.assertEqual(r.headers['Cache-Control'], 'no-store')
 
+    def test_https_origin_matching_host_is_accepted(self):
+        # The WebUI is fronted by an HTTPS proxy (nginx basic-auth vhost); the
+        # browser Origin is https while nginx forwards http to the app. The
+        # Origin netloc must equal Host and be allowlisted — scheme is transport.
+        with mock.patch.object(app.control, 'action', return_value=(True, 'ok')) as control:
+            r = self.post('/api/service', {'action': 'restart', 'confirm': True},
+                          Origin='https://' + self.host)
+            self.assertEqual(r.status, 200)
+            control.assert_called_once_with('restart')
+
     def test_invalid_host_origin_token_and_confirmation(self):
         with self.assertRaises(error.HTTPError) as e:
             self.get('/api/session', Host='attacker.invalid')

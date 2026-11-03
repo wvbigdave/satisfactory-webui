@@ -4,6 +4,17 @@ All notable changes to the Satisfactory WebUI are recorded here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/); versioning is SemVer
 (`__version__` in `satisfactory_webui/__init__.py` is the single source of truth).
 
+## [Unreleased]
+
+### Changed
+- **HTTPS-proxy support** (`_origin_ok`): the same-Origin CSRF check now accepts
+  an `https` scheme as well as `http`, so the console can be served through a
+  TLS-terminating proxy (nginx basic-auth vhost at `satserv.axtriss.site`). The
+  Origin *netloc* must still exactly equal the Host header and be in the
+  `SATISFACTORY_HOSTS` allowlist — scheme is transport only. Added
+  `satserv.axtriss.site` to the default allowlist in `deploy/` so a proper
+  HTTPS front-end remains fully functional (POSTs 403'd previously).
+
 ## [0.6.2] - 2026-11-01
 
 ### Added

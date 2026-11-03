@@ -13,7 +13,7 @@ ExecStart=/usr/bin/python3 -m satisfactory_webui.app
 Environment=PYTHONDONTWRITEBYTECODE=1
 Environment=SATISFACTORY_BIND=192.168.4.60
 Environment=SATISFACTORY_PORT=8082
-Environment=SATISFACTORY_HOSTS=192.168.4.60:8082,127.0.0.1:8082,localhost:8082,satisfactory:8082
+Environment=SATISFACTORY_HOSTS=192.168.4.60:8082,127.0.0.1:8082,localhost:8082,satisfactory:8082,satserv.axtriss.site
 Environment=SATISFACTORY_NETWORKS=192.168.4.0/22,127.0.0.0/8
 Restart=on-failure
 RestartSec=3
