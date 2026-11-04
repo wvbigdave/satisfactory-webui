@@ -16,7 +16,7 @@ import subprocess
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, quote
 
 from . import __version__
 from . import api, control, fields, monitor, archives, branding
@@ -29,6 +29,14 @@ NETWORKS = os.environ.get(
     "SATISFACTORY_NETWORKS", "192.168.4.0/22,127.0.0.0/8"
 ).split(",")
 # Exact Host header allowlist (comma-separated).
+# SSO boundary (Authelia public vhost): the proxy forwards the authenticated
+# identity as the HTTP `Remote-User` header once the user has passed auth; the
+# logout endpoint returns to the app. `rd` is the URL-encoded return address.
+SSO_LOGOUT_URL = os.environ.get(
+    "SATISFACTORY_SSO_LOGOUT", "https://auth.axtriss.site/logout"
+)
+SSO_RETURN_URL = os.environ.get("SATISFACTORY_SSO_RETURN", "https://satserv.axtriss.site")
+
 HOSTS = os.environ.get(
     "SATISFACTORY_HOSTS",
     "192.168.4.60:8082,127.0.0.1:8082,localhost:8082,satisfactory:8082",
@@ -351,6 +359,18 @@ def _route_about():
     }
 
 
+def _route_sso(headers):
+    """Return the single-sign-on identity for the current request.
+
+    The Authelia-auth whitelist vhost forwards the authenticated username as
+    the HTTP `Remote-User` header. Without a proxy there is no identity (null),
+    but the logout URL is always provided so the UI can render the portal link.
+    """
+    user = headers.get("Remote-User") or None
+    logout_url = f"{SSO_LOGOUT_URL}?rd={quote(SSO_RETURN_URL, safe='')}"
+    return {"user": user, "logoutUrl": logout_url, "authenticated": user is not None}
+
+
 def _listeners():
     try:
         proc = subprocess.run(["ss", "-tlnp"], capture_output=True, text=True, timeout=10)
@@ -529,6 +549,8 @@ class Handler(BaseHTTPRequestHandler):
             _send_json(self, {"version": __version__})
         elif path == "/api/session":
             _send_json(self, {"csrf": _csrf})
+        elif path == "/api/sso":
+            _send_json(self, _route_sso(self.headers))
         elif path == "/api/overview":
             _send_json(self, _route_overview())
         elif path == "/api/saves":

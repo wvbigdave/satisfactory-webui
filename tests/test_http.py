@@ -75,6 +75,23 @@ class HTTPTests(unittest.TestCase):
                 self.get(path)
             self.assertEqual(e.exception.code, 400)
 
+    def test_sso_identity_and_logout(self):
+        # Without a proxy there is no identity; logout URL is still returned.
+        with self.get('/api/sso') as r:
+            data = json.load(r)
+            self.assertEqual(data['user'], None)
+            self.assertFalse(data['authenticated'])
+        # The Authelia whitelist vhost forwards the username as Remote-User.
+        for value in ['dave', 'pioneer']:
+            with self.get('/api/sso', **{'Remote-User': value}) as r:
+                data = json.load(r)
+                self.assertEqual(data['user'], value)
+                self.assertTrue(data['authenticated'])
+        import urllib.parse
+        expected = 'https://auth.axtriss.site/logout?rd=' + urllib.parse.quote('https://satserv.axtriss.site', safe='')
+        with self.get('/api/sso') as r:
+            self.assertEqual(json.load(r)['logoutUrl'], expected)
+
     def test_snapshot_roundtrip_and_removal(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d); saves=root/'saves'; backups=root/'backups'; saves.mkdir()

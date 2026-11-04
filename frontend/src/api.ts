@@ -119,6 +119,12 @@ export interface Branding {
   logo: string | null;
 }
 
+export interface SSO {
+  user: string | null;
+  logoutUrl: string;
+  authenticated: boolean;
+}
+
 export interface LogsData { text: string }
 
 let csrfToken = "";
@@ -158,6 +164,7 @@ export const api = {
   backups: () => getJSON<BackupsData>("/api/backups"),
   credits: () => getJSON<CreditsData>("/api/credits"),
   branding: () => getJSON<Branding>("/api/branding"),
+  sso: () => getJSON<SSO>("/api/sso"),
   saveBranding: (payload: Partial<Branding> & { logoDataUrl?: string; clearLogo?: boolean }) =>
     postJSON<Branding>("/api/branding", payload),
   applyOptions: (updated: Record<string, string>) => postJSON("/api/apply-options", { updated }),

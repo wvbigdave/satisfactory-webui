@@ -3,7 +3,7 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
-import type { Branding } from "../api";
+import { api, type Branding, type SSO } from "../api";
 import ficsitMark from "../assets/ficsit-mark.png";
 import { StatusPill } from "./ui";
 
@@ -32,6 +32,21 @@ export function BrandMark({ branding, size = 24 }: { branding: Branding; size?: 
     return <span className="font-black leading-none" style={{ fontSize: size * 0.55, color: "#12141a" }}>{branding.mark}</span>;
   }
   return <img src={ficsitMark} alt="" style={{ height: size, width: size }} className="object-contain" />;
+}
+
+function SSOChip() {
+  const [sso, setSso] = useState<SSO | null>(null);
+  useEffect(() => {
+    api.sso().then(setSso).catch(() => setSso(null));
+  }, []);
+  if (!sso?.user) return null;
+  return (
+    <div className="flex items-center gap-2 rounded-md border border-edge bg-panel2/70 px-2.5 py-1.5 text-[11px] text-muted">
+      <span className="max-w-[160px] truncate font-semibold text-ink">{sso.user}</span>
+      <span className="text-edge">|</span>
+      <a href={sso.logoutUrl} rel="noopener" className="hover:text-accent">Logout</a>
+    </div>
+  );
 }
 
 function CommandPalette({ open, onClose, go }: { open: boolean; onClose: () => void; go: (r: RouteId) => void }) {
@@ -125,6 +140,7 @@ export function Layout({
             <Search size={12} /> Search <kbd className="rounded border border-edge px-1 text-[9px]">Ctrl K</kbd>
           </button>
           <StatusPill ok={online}>{online ? health || "Online" : "API offline"}</StatusPill>
+          <SSOChip />
           <span className="text-[11px] text-muted">v{version}</span>
         </div>
         <button
