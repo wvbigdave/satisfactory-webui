@@ -125,6 +125,27 @@ export interface SSO {
   authenticated: boolean;
 }
 
+export interface UpdateData {
+  installed: ServerVersion;
+  available: {
+    byBranch: Record<string, string>;
+    checkedAt: number | null;
+    error?: string | null;
+  };
+  updateAvailable: boolean;
+  branches: string[];
+  job: {
+    running: boolean;
+    mode: string | null;
+    startedAt: string | null;
+    finishedAt: string | null;
+    exitCode: number | null;
+    error: string | null;
+  };
+  logTail: string[];
+  helper: string;
+}
+
 export interface LogsData { text: string }
 
 let csrfToken = "";
@@ -165,6 +186,10 @@ export const api = {
   credits: () => getJSON<CreditsData>("/api/credits"),
   branding: () => getJSON<Branding>("/api/branding"),
   sso: () => getJSON<SSO>("/api/sso"),
+  update: () => getJSON<UpdateData>("/api/update"),
+  updateCheck: () => postJSON("/api/update/check", { confirm: true }),
+  updateStart: (branch: string, validate: boolean) =>
+    postJSON("/api/update/start", { branch, validate, confirm: true }),
   saveBranding: (payload: Partial<Branding> & { logoDataUrl?: string; clearLogo?: boolean }) =>
     postJSON<Branding>("/api/branding", payload),
   applyOptions: (updated: Record<string, string>) => postJSON("/api/apply-options", { updated }),

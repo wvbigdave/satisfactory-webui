@@ -1,0 +1,58 @@
+#!/bin/sh
+# Root-owned sudo allowlist target for the Satisfactory WebUI update page.
+#
+# The WebUI runs as the unprivileged `satisfactory` user under a hardened
+# systemd sandbox (ProtectHome=tmpfs, ReadOnly bind for the game dir), so a
+# plain child process cannot write /home/satisfactory/server. To update we
+# re-exec the real worker inside a TRANSIENT systemd unit (systemd-run) as the
+# satisfactory user, which gets a fresh, fully-writable mount namespace and a
+# real HOME. --wait/--pipe stream the worker's stdout back to the caller, so
+# the WebUI can show live progress.
+#
+# SECURITY: this file is owned by root and NOT writable by anyone else. The
+# only allowed argument is a word from the set {check, update}; anything else
+# is rejected before systemd-run is touched. `update` runs the fixed-vocabulary
+# update worker, never a caller-supplied command.
+set -eu
+
+WORKER=/usr/local/sbin/satisfactory-server-update-worker
+APP_ID=1690800
+INSTALL_DIR=/home/satisfactory/server
+
+mode="${1:-}"
+case "$mode" in
+  check|update) ;;
+  *)
+    echo "usage: satisfactory-server-update <check|update>" >&2
+    exit 2
+    ;;
+esac
+
+if [ ! -x "$WORKER" ]; then
+    echo "worker missing: $WORKER" >&2
+    exit 3
+fi
+
+# Branch + validate are passed to the caller over stdin? No — they are fixed
+# policy of the WebUI request. For a public (release) branch we pass nothing;
+# experimental is a fixed Steam branch we allow the operator to pick.
+branch="${2:-public}"
+validate="${3:-no}"
+
+# Re-exec the worker in a transient unit as the satisfactory service account.
+# `public` is a special default branch and is passed as such; `experimental`
+# selects Steam's experimental branch for app 1690800. Both are validated by
+# the worker before any argument reaches steamcmd.
+case "$branch" in
+  public|experimental) ;;
+  *) echo "invalid branch: $branch" >&2; exit 2 ;;
+esac
+case "$validate" in
+  yes|no) ;;
+  *) echo "validate must be yes or no" >&2; exit 2 ;;
+esac
+
+exec systemd-run --wait --pipe --collect --quiet \
+  --unit=sat-webui-update --uid=satisfactory --gid=satisfactory \
+  --setenv=HOME=/home/satisfactory \
+  "$WORKER" "$mode" "$APP_ID" "$INSTALL_DIR" "$branch" "$validate"

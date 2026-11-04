@@ -43,14 +43,15 @@
 | Overview, history, UTC count activity | Supported: vanilla API and Linux only |
 | Saves/downloads/manual backup vault | Supported: no game mutation for snapshot/download |
 | Existing config, logs, versions, ports, service controls | Retained; no changes applied during rollout |
-| Scheduled backups/restarts/updates/pruning, watchdog, notifications | Not enabled; policy requires separate explicit approval |
+| Scheduled backups/restarts/updates/pruning, watchdog, notifications | Manual backups, stop/start/restart and on-demand server updates supported; time-based scheduling, pruning, watchdog and notifications are not enabled (policy requires separate explicit approval) |
+| Automatic/periodic update checks | Not enabled by default — the Update server page runs an explicit, quota-gated check and applies updates on demand |
 | Restore/upload, arbitrary shell/console UI | Deferred: destructive/security-sensitive; download recovery copies first |
 | Factory/power/map/inventory/vehicle data, individual player identities | Unavailable from vanilla API; FRM/mod-required work deferred |
 | Pioneer HQ Go/React/GraphQL and Windows PowerShell runtime | Not bundled: incompatible/mod-dependent; compatible ideas integrated natively |
 | Public access | Not supported without a separate authenticated HTTPS boundary |
 
-New routes: `/history`, `/backups`, `/credits`. JSON read endpoints:
-`/api/history?hours=1|6|24|168`, `/api/backups`, `/api/credits`.
+New routes: `/update`, `/history`, `/backups`, `/credits`. JSON read endpoints:
+`/api/update` (installed + latest-available build + job state), `/api/history?hours=1|6|24|168`, `/api/backups`, `/api/credits`.
 Read-only attachment endpoints: `/api/download-save?name=<filename.sav>` and
 `/api/download-backup?name=<archive.sav>`. POST `/api/backup` takes `name`;
 `/api/remove-backup` takes `name` and `confirm: true`. All POSTs require the

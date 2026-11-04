@@ -19,7 +19,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs, quote
 
 from . import __version__
-from . import api, control, fields, monitor, archives, branding
+from . import api, control, fields, monitor, archives, branding, update
 
 # --- Configuration (overridable via environment) ---------------------------
 BIND = os.environ.get("SATISFACTORY_BIND", "192.168.4.60")
@@ -488,6 +488,22 @@ def _post_remove_backup(body):
     return archives.remove(body.get("name")), 200
 
 
+def _post_update_check(body):
+    if body.get("confirm") is not True:
+        return {"error": "explicit confirmation required"}, 400
+    return update.check(), 200
+
+
+def _post_update_start(body):
+    if body.get("confirm") is not True:
+        return {"error": "explicit confirmation required"}, 400
+    branch = (body.get("branch") or "").strip() or "public"
+    ok, payload = update.start_update(branch, validate=body.get("validate") is True)
+    if not ok:
+        return payload, 400
+    return payload, 200
+
+
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -591,6 +607,8 @@ class Handler(BaseHTTPRequestHandler):
                 _send_json(self, json.load(f))
         elif path == "/api/branding":
             _send_json(self, branding.load())
+        elif path == "/api/update":
+            _send_json(self, update.status())
         elif path == "/api/logo":
             _send_logo(self)
         elif path == "/api/stream":
@@ -637,6 +655,8 @@ class Handler(BaseHTTPRequestHandler):
             "/api/backup": _post_backup,
             "/api/remove-backup": _post_remove_backup,
             "/api/branding": _post_branding,
+            "/api/update/check": _post_update_check,
+            "/api/update/start": _post_update_start,
         }
         fn = routes.get(path)
         if not fn:

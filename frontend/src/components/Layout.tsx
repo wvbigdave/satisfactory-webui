@@ -1,5 +1,5 @@
 import {
-  Activity, Archive, BookOpen, Cog, FileText, Gauge, LayoutDashboard, Menu, Palette, ScrollText, Search, Server, X,
+  Activity, Archive, BookOpen, Cog, FileText, Gauge, LayoutDashboard, Menu, Palette, RefreshCw, ScrollText, Search, Server, X,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
@@ -8,7 +8,7 @@ import ficsitMark from "../assets/ficsit-mark.png";
 import { StatusPill } from "./ui";
 
 export type RouteId =
-  | "/" | "/history" | "/saves" | "/backups" | "/config" | "/logs" | "/branding" | "/about" | "/credits";
+  | "/" | "/history" | "/saves" | "/backups" | "/config" | "/logs" | "/update" | "/branding" | "/about" | "/credits";
 
 const NAV: { id: RouteId; label: string; icon: ReactNode; group: string }[] = [
   { id: "/", label: "Overview", icon: <LayoutDashboard size={17} />, group: "Command center" },
@@ -16,6 +16,7 @@ const NAV: { id: RouteId; label: string; icon: ReactNode; group: string }[] = [
   { id: "/saves", label: "Sessions & saves", icon: <ScrollText size={17} />, group: "Operations" },
   { id: "/backups", label: "Backup vault", icon: <Archive size={17} />, group: "Operations" },
   { id: "/config", label: "Configuration", icon: <Cog size={17} />, group: "Operations" },
+  { id: "/update", label: "Update server", icon: <RefreshCw size={17} />, group: "Operations" },
   { id: "/logs", label: "Server logs", icon: <FileText size={17} />, group: "Operations" },
   { id: "/branding", label: "Branding & logo", icon: <Palette size={17} />, group: "System" },
   { id: "/about", label: "About & ports", icon: <Server size={17} />, group: "System" },

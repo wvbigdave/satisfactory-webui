@@ -11,6 +11,7 @@ const Overview = lazy(() => import("./pages/Overview"));
 const History = lazy(() => import("./pages/History"));
 const Saves = lazy(() => import("./pages/Saves"));
 const Backups = lazy(() => import("./pages/Backups"));
+const Update = lazy(() => import("./pages/Update"));
 const Config = lazy(() => import("./pages/Config"));
 const Logs = lazy(() => import("./pages/Logs"));
 const Branding = lazy(() => import("./pages/Branding"));
@@ -22,6 +23,7 @@ const TITLES: Record<RouteId, string> = {
   "/history": "Telemetry & activity",
   "/saves": "Sessions & saves",
   "/backups": "Backup vault",
+  "/update": "Update server",
   "/config": "Configuration",
   "/logs": "Server logs",
   "/branding": "Branding & logo",
@@ -98,6 +100,7 @@ export default function App() {
       case "/history": return <History />;
       case "/saves": return <Saves />;
       case "/backups": return <Backups />;
+      case "/update": return <Update />;
       case "/config": return <Config />;
       case "/logs": return <Logs />;
       case "/branding": return <Branding branding={branding} onSaved={setBranding} />;

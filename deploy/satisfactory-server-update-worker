@@ -1,0 +1,106 @@
+#!/bin/bash
+# Worker for the Satisfactory server update page. Runs as the `satisfactory`
+# user inside a transient systemd unit (see satisfactory-server-update), so it
+# has a real, writable /home/satisfactory and a real HOME for steamcmd.
+#
+# Modes:
+#   check   <appid> <installdir> <branch> <validate>  -> resolve the latest
+#           Steam buildid for each branch WITHOUT downloading, print as
+#           `AVAILABLE <branch>=<buildid>` lines on stdout.
+#   update  <appid> <installdir> <branch> <validate>  -> stop the game service,
+#           run steamcmd app_update for the branch (optionally `validate`),
+#           then start the game service again. Streams output throughout.
+#
+# The game service is stopped before files change and restarted on success so
+# the running process never sees a half-written install. The satisfactory user
+# holds the fixed sudo rights to control satisfactory.service (control.py).
+#
+# All input is argv-fixed from the caller; no shell expansion reaches steamcmd.
+set -euo pipefail
+
+mode="${1:?mode}"
+APP_ID="${2:?appid}"
+INSTALL_DIR="${3:?installdir}"
+branch="${4:-public}"
+validate="${5:-no}"
+
+STEAMCMD=/usr/games/steamcmd
+SERVICE=satisfactory.service
+
+case "$branch" in
+  public|experimental) ;;
+  *) echo "invalid branch: $branch" >&2; exit 2 ;;
+esac
+case "$validate" in
+  yes|no) ;;
+  *) echo "validate must be yes or no" >&2; exit 2 ;;
+esac
+
+stop_service() {
+  echo ">>> stopping $SERVICE (game)"
+  sudo -n systemctl stop "$SERVICE"
+}
+
+start_service() {
+  echo ">>> starting $SERVICE (game)"
+  sudo -n systemctl start "$SERVICE"
+  sleep 1
+  if [ "$(systemctl show "$SERVICE" -p ActiveState --value)" != active ]; then
+    echo "!!! $SERVICE did not reach active after start" >&2
+    return 1
+  fi
+  echo ">>> $SERVICE active"
+}
+
+case "$mode" in
+  check)
+    # Resolve buildids without installing. Extract each branch name + its
+    # leading buildid from the `branches` block of steamcmd's app_info output.
+    "$STEAMCMD" +force_install_dir "$INSTALL_DIR" +login anonymous \
+      +app_info_update 1 +app_info_print "$APP_ID" +quit 2>/dev/null \
+    | python3 -c '
+import re, sys
+text = sys.stdin.read()
+m = re.search(r"\n\s*\"branches\"\s*\{", text)
+if not m:
+    sys.exit(0)
+block = text[m.end():]
+depth = 1
+i = 0
+while i < len(block) and depth:
+    if block[i] == "{":
+        depth += 1
+    elif block[i] == "}":
+        depth -= 1
+    i += 1
+branches_block = block[:i]
+pat = re.compile(r'"([A-Za-z0-9_]+)"\s*\{\s*(?:[^{}]*?)"buildid"\s+"(\d+)"')
+for name, bid in pat.findall(branches_block):
+    print(f"AVAILABLE {name}={bid}")
+'
+    ;;
+  update)
+    args=(+force_install_dir "$INSTALL_DIR" +login anonymous)
+    if [ "$branch" != public ]; then
+      args+=(-beta "$branch")
+    fi
+    args+=(+app_update "$APP_ID")
+    if [ "$validate" = yes ]; then
+      args+=(validate)
+    fi
+    args+=(+quit)
+
+    stop_service
+    echo ">>> running: steamcmd ${args[*]}"
+    "$STEAMCMD" "${args[@]}"
+    rc=$?
+    echo ">>> steamcmd finished (exit $rc)"
+    if [ $rc -ne 0 ]; then
+      echo "!!! app_update failed; leaving game stopped" >&2
+      exit $rc
+    fi
+    start_service
+    ;;
+  *)
+    echo "invalid mode: $mode" >&2; exit 2 ;;
+esac

@@ -7,6 +7,19 @@ All notable changes to the Satisfactory WebUI are recorded here. Format follows
 ## [Unreleased]
 
 ### Changed
+- **Server update page** (`/update`): a dedicated section to check for and apply
+  Satisfactory server updates. Reads the installed Steam build/version from disk,
+  resolves the latest public/experimental build IDs via steamcmd `app_info`
+  (info-only, quota-gated manual check), and applies an update by stopping the
+  game, running `app_update` for the chosen branch (optionally with file
+  validation), then restarting the game on success — all published through a
+  root-owned sudo target that re-execs a worker in a transient systemd-run unit
+  as the `satisfactory` user (fresh, writable mount namespace). Live output is
+  shown in the page. New endpoints: `GET /api/update`, `POST
+  /api/update/check`, `POST /api/update/start` (branch + validate, CSRF +
+  explicit `confirm:true`). This is the long-pending "update server" capability
+  the console previously documented as *not enabled*. "Public release" is the
+  default branch; "Experimental" opts into Steam's `-beta experimental`.
 - **HTTPS-proxy support** (`_origin_ok`): the same-Origin CSRF check now accepts
   an `https` scheme as well as `http`, so the console can be served through a
   TLS-terminating proxy (nginx basic-auth vhost at `satserv.axtriss.site`). The
