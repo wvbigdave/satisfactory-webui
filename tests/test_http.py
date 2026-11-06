@@ -1,5 +1,6 @@
 """Exercise actual HTTP framing, admission, CSRF, downloads and API routes."""
 import io
+import http.client
 import json
 from pathlib import Path
 import tempfile
@@ -42,6 +43,14 @@ class HTTPTests(unittest.TestCase):
                 self.assertIn("script-src 'self'", r.headers['Content-Security-Policy'])
                 self.assertEqual(r.headers['X-Frame-Options'], 'DENY')
                 self.assertEqual(r.headers['Cache-Control'], 'no-store')
+
+    def test_invalid_network_masks_cannot_widen_admission(self):
+        for cidr in ('192.0.2.0/-1', '192.0.2.0/33', 'not-a-network'):
+            with self.assertRaises(ValueError):
+                app._net_to_range(cidr)
+        self.assertEqual(app._net_to_range('192.0.2.60/24'),
+                         (int(__import__('ipaddress').IPv4Address('192.0.2.0')),
+                          int(__import__('ipaddress').IPv4Address('192.0.2.255'))))
 
     def test_https_origin_matching_host_is_accepted(self):
         # The WebUI is fronted by an HTTPS proxy (nginx basic-auth vhost); the
@@ -88,7 +97,9 @@ class HTTPTests(unittest.TestCase):
                 self.assertEqual(data['user'], value)
                 self.assertTrue(data['authenticated'])
         import urllib.parse
-        expected = 'https://auth.axtriss.site/logout?rd=' + urllib.parse.quote('https://satserv.axtriss.site', safe='')
+        expected = app.SSO_LOGOUT_URL
+        if expected and app.SSO_RETURN_URL:
+            expected += ('&' if '?' in expected else '?') + 'rd=' + urllib.parse.quote(app.SSO_RETURN_URL, safe='')
         with self.get('/api/sso') as r:
             self.assertEqual(json.load(r)['logoutUrl'], expected)
 
@@ -128,6 +139,60 @@ class HTTPTests(unittest.TestCase):
         with mock.patch.object(api, 'safe_call') as call:
             api.load_game('session', 'save')
             call.assert_called_once_with('LoadGame', {'SaveName':'save', 'EnableAdvancedGameSettings':False})
+
+    def test_save_requires_confirmation_before_game_call(self):
+        with mock.patch.object(api, 'save_game', return_value=(True, {})) as save:
+            with self.assertRaises(error.HTTPError) as raised:
+                self.post('/api/save', {'name': 'existing'})
+            self.assertEqual(raised.exception.code, 400)
+            save.assert_not_called()
+            with self.post('/api/save', {'name': 'existing', 'confirm': True}) as response:
+                self.assertEqual(response.status, 200)
+            save.assert_called_once_with('existing')
+
+    def test_bad_json_and_field_types_do_not_reach_game(self):
+        for body in (b'{', b'[]', b'null'):
+            with self.subTest(body=body):
+                req = request.Request(self.base + '/api/save', data=body, headers={
+                    'X-CSRF-Token': app._csrf, 'Origin': self.base})
+                with self.assertRaises(error.HTTPError) as raised:
+                    request.urlopen(req, timeout=5)
+                self.assertEqual(raised.exception.code, 400)
+        with mock.patch.object(api, 'save_game') as save:
+            with self.assertRaises(error.HTTPError) as raised:
+                self.post('/api/save', {'name': 42, 'confirm': True})
+            self.assertEqual(raised.exception.code, 400)
+            save.assert_not_called()
+        for path, body in [('/api/service', {'action': [], 'confirm': True}),
+                           ('/api/update/start', {'branch': [], 'confirm': True}),
+                           ('/api/update/start', {'validate': 'yes', 'confirm': True}),
+                           ('/api/apply-options', {'updated': {'foo': []}})]:
+            with self.assertRaises(error.HTTPError) as raised:
+                self.post(path, body)
+            self.assertEqual(raised.exception.code, 400)
+
+    def test_rejected_csrf_closes_connection_with_retry_code(self):
+        with self.assertRaises(error.HTTPError) as raised:
+            self.post('/api/save', {'name': 'test', 'confirm': True}, **{'X-CSRF-Token': 'old'})
+        response = raised.exception
+        self.assertEqual(json.load(response)['code'], 'invalid_csrf')
+        response.close()
+
+    def test_ambiguous_request_framing_is_rejected(self):
+        for headers in ([('Content-Length', '2'), ('Content-Length', '2')],
+                        [('Content-Length', '2'), ('Transfer-Encoding', 'chunked')]):
+            conn = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=5)
+            self.addCleanup(conn.close)
+            conn.putrequest('POST', '/api/save')
+            conn.putheader('X-CSRF-Token', app._csrf)
+            conn.putheader('Origin', self.base)
+            for key, value in headers:
+                conn.putheader(key, value)
+            conn.endheaders(b'{}')
+            response = conn.getresponse()
+            self.assertEqual(response.status, 400)
+            self.assertTrue(response.will_close)
+            response.read()
 
     def test_built_assets_are_served_with_correct_types(self):
         # The SPA fallback must NOT swallow asset requests: real content and

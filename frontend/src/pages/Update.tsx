@@ -22,9 +22,9 @@ export default function Update() {
   if (loading && !data) return <Loading />;
   if (error && !data) return <ErrorBox message={error} />;
   const d = data as UpdateData;
-  const { installed, available, job, logTail, branches, updateAvailable } = d;
+  const { installed, available, job, logTail, branches } = d;
   const running = job.running;
-  const latest = available.byBranch[branch] ?? available.byBranch.public;
+  const latest = available.byBranch[branch];
   const installedId = installed.steamBuildId;
 
   async function doCheck() {
@@ -82,12 +82,12 @@ export default function Update() {
           <KV k="Experimental" v={available.byBranch.experimental ? available.byBranch.experimental : "—"} />
           <KV k="Last checked" v={available.checkedAt ? new Date(available.checkedAt * 1000).toLocaleString() : "never"} />
           {available.error && <p className="mt-2 text-[11px] text-warn">{available.error}</p>}
-          {updateAvailable ? (
+          {latest && installedId && latest !== installedId ? (
             <p className="mt-3"><Chip tone="warn">UPDATE AVAILABLE</Chip></p>
-          ) : latest ? (
+          ) : latest && installedId ? (
             <p className="mt-3"><Chip tone="ok">UP TO DATE</Chip></p>
           ) : (
-            <p className="mt-3 text-[11px] text-muted">Run an update check to compare against the installed build.</p>
+            <p className="mt-3 text-[11px] text-muted">{!installedId ? "Installed build is unknown; update status cannot be determined." : "Run an update check to compare the selected branch against the installed build."}</p>
           )}
         </Panel>
       </div>

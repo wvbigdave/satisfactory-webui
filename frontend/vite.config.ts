@@ -1,11 +1,11 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
 // Build output is committed to Git and shipped inside the Python package; the
 // stdlib server serves web/app/ as static assets. No runtime Node is required
 // on the target host — only the pre-built files.
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react(), tailwindcss()],
   base: "/",
   build: {
@@ -29,6 +29,6 @@ export default defineConfig({
     },
   },
   server: {
-    proxy: { "/api": "http://192.168.4.60:8082" },
+    proxy: { "/api": loadEnv(mode, ".", "SATISFACTORY_").SATISFACTORY_DEV_PROXY || "http://127.0.0.1:8082" },
   },
-});
+}));

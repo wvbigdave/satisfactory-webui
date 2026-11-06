@@ -1,188 +1,180 @@
-# Satisfactory WebUI
+# 🏭 Satisfactory WebUI
 
-**LAN admin console for the Axtriss Satisfactory dedicated server — live state, save management, configuration, logs and systemd service controls.**
+**A self-hosted Linux admin console for Satisfactory dedicated servers.**
 
-## Deployment
+---
 
-| Item | Value |
+## Features
+
+| Area | Supported functionality |
 |---|---|
-| Code | `/opt/satisfactory-webui` |
-| Service | `satisfactory-webui.service` (dedicated `satisfactory` account) |
-| Game | Satisfactory dedicated server (CT 200, 192.168.4.60) |
-| API | HTTPS API on `127.0.0.1:7777` (`AllowInsecureLocalAccess=1`) |
-| Configuration | `Engine.ini`, `GameUserSettings.ini` (read-only to this console) |
-| Runtime dependencies | Python 3 standard library, systemd, sudo, iproute2 |
+| Overview | Vanilla game API state, live SSE with polling fallback, systemd status, disk and cgroup metrics |
+| History | Seven-day local SQLite history and observed concurrent-player activity by UTC hour |
+| Saves | List, download, save, load and delete; confirmation before saving, loading or deleting |
+| Backups | Manual verified snapshots, downloads and explicit removal; no automatic pruning or restore |
+| Configuration | Server options and advanced game settings through the game API |
+| Logs | Journal tail of the configured game service |
+| Updates | Manual Steam build checks and public/experimental updates, with optional file validation |
+| Branding | Name, tagline, accent colour, text mark and logo |
 
-## Capabilities
+No game mods or external asset CDN are required. Account names, paths, network
+addresses, API endpoint and game service name are configurable. The application
+is Linux/systemd-based; Windows service management is not supported.
 
-### v0.3 unified Linux console
+## Requirements
 
-- Responsive industrial sidebar/dashboard with category-colored metrics,
-  native SVG history charts and accessible capacity gauges; no CDN dependencies.
-- One background sampler records real vanilla API TPS/player counts, Linux
-  **whole-service cgroup** CPU/memory, filesystem usage and save sizes every 30s.
-  SQLite history persists in `/var/lib/satisfactory-webui/history.sqlite`, bounded
-  to seven days / 20,161 samples. Charts are downsampled to at most 600 points;
-  unavailable samples remain gaps, not fabricated zeroes. CPU 100% means one core;
-  cgroup memory includes cache and is not process RSS. Heatmap is observed mean
-  concurrent players by UTC weekday/hour, not named users or unique-player counts.
-- Manual save snapshots and streamed downloads, stored separately in
-  `/var/lib/satisfactory-webui/backups`: 32 files, 512 MiB total, 64 MiB per file,
-  64 MiB disk headroom. Full storage refuses new copies; **no automatic pruning**.
-  Source saves are read-only in the sandbox; changing files are rejected.
-  Snapshot names are server-generated; SHA-256 returned on creation.
-- Explicit confirmation before game stop/restart/start, load/delete, applying
-  options/settings or overwriting a named save. Mutation APIs retain CSRF and
-  exact same-origin checks; body size is bounded. No autonomous game policy added.
-- Upstream code vs design references are documented precisely in
-  [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and visible `/credits` with full
-  unmodified licenses and pinned revisions.
+- Linux with systemd and cgroup v2.
+- Python 3, sudo, journalctl and iproute2.
+- A Satisfactory dedicated server with an accessible HTTPS API.
+- SteamCMD for the optional manual update feature.
+- Node/npm only when developing or rebuilding the frontend. Built assets are included.
 
-| Feature | Status / reason |
-|---|---|
-| Overview, history, UTC count activity | Supported: vanilla API and Linux only |
-| Saves/downloads/manual backup vault | Supported: no game mutation for snapshot/download |
-| Existing config, logs, versions, ports, service controls | Retained; no changes applied during rollout |
-| Scheduled backups/restarts/updates/pruning, watchdog, notifications | Manual backups, stop/start/restart and on-demand server updates supported; time-based scheduling, pruning, watchdog and notifications are not enabled (policy requires separate explicit approval) |
-| Automatic/periodic update checks | Not enabled by default — the Update server page runs an explicit, quota-gated check and applies updates on demand |
-| Restore/upload, arbitrary shell/console UI | Deferred: destructive/security-sensitive; download recovery copies first |
-| Factory/power/map/inventory/vehicle data, individual player identities | Unavailable from vanilla API; FRM/mod-required work deferred |
-| Pioneer HQ Go/React/GraphQL and Windows PowerShell runtime | Not bundled: incompatible/mod-dependent; compatible ideas integrated natively |
-| Public access | Not supported without a separate authenticated HTTPS boundary |
+## Installation
 
-New routes: `/update`, `/history`, `/backups`, `/credits`. JSON read endpoints:
-`/api/update` (installed + latest-available build + job state), `/api/history?hours=1|6|24|168`, `/api/backups`, `/api/credits`.
-Read-only attachment endpoints: `/api/download-save?name=<filename.sav>` and
-`/api/download-backup?name=<archive.sav>`. POST `/api/backup` takes `name`;
-`/api/remove-backup` takes `name` and `confirm: true`. All POSTs require the
-session CSRF header. Local snapshots are not off-host disaster recovery.
-
-| Page | Verified source / behavior |
-|---|---|
-| Overview | Live server state via HTTPS API, systemd state, disk usage; confirmed start/stop/restart |
-| Saves | Enumerate sessions/saves, load a save, save now, delete a save file |
-| Configuration | Edit and apply Server Options and Advanced Game Settings via the API, with field help |
-| Server logs | Bounded journal tail of `satisfactory.service` |
-| About & ports | Version, bind address, admitted networks, config dir, listeners |
-
-## Security boundary
-
-**This is not an authenticated console. Every admitted client can administer the
-game server.** Bind it to a trusted network only — by default it listens on one
-private address and admits loopback plus the configured private subnets — and do
-not expose it through a public proxy without adding authentication and HTTPS
-first.
-
-| Control | Scope |
-|---|---|
-| Bind / admission | Single private bind address; loopback plus configurable private subnets; exact Host allowlist |
-| CSRF | Random process token, custom header, required same Origin for every POST |
-| Browser policy | CSP without inline script/style, frame denial, no CORS, no-store, nosniff |
-| API access | Loopback only; the game API is never exposed to the browser |
-| Privilege | Root-owned code; runs as the `satisfactory` account; sudo allows only three exact systemctl commands; systemd limits filesystem, devices and memory |
-
-## Install / update
-
-Copy the complete tracked source to the target host (e.g. `/opt/satisfactory-webui`).
-
-Before replacing code, archive `/opt/satisfactory-webui`, the WebUI unit and
-sudoers allowlist under a root-only timestamped directory. Record both the
-`satisfactory` service MainPID and its game-binary child PID; neither should
-change. Installer restarts **only the WebUI**. Roll back by restoring that code
-and unit, `systemctl daemon-reload`, then restarting `satisfactory-webui` only.
-Do not remove `/var/lib/satisfactory-webui` when rolling back; it contains history
-and manual archives. `StateDirectory=` creates its restricted writable directory.
+Use the existing **unprivileged game-service account** and actual game/save
+directories. The installer does not create accounts or install the game.
 
 ```sh
-# On the target host, after copying this repository:
-sudo sh /opt/satisfactory-webui/deploy/install.sh
-sudo systemctl status satisfactory-webui.service
+sh deploy/install.sh --help
+
+# Replace the example account, paths and game unit with your own.
+sh deploy/install.sh --user games --server-dir /srv/satisfactory \
+  --save-dir /srv/satisfactory-saves --service factory.service --dry-run
+
+sudo sh deploy/install.sh --user games --server-dir /srv/satisfactory \
+  --save-dir /srv/satisfactory-saves --service factory.service
 ```
 
-Set the bind address, port, admitted subnets and Host allowlist via `Environment=`
-lines in the unit (see `deploy/satisfactory-webui.service`). The installer tests
-before enabling, validates the sudoers file, installs only the supplied
-service/allowlist, and restarts the console. It does not restart or rewrite the
-game.
+The server, save and config directories must exist and be readable by the
+selected account. `--save-dir` must contain the `.sav` files. See `--help` for
+custom group, code/config paths, SteamCMD, API, network, cgroup and SSO options.
 
-| Operation | Command |
+The installer validates configuration, runs backend tests and installs
+root-owned code at `/opt/satisfactory-webui` by default. It restarts **only the
+WebUI**, not the game. The unit and sudoers files under `deploy/` are templates;
+do not install them directly.
+
+## Access
+
+The default listener is **127.0.0.1:8082**, with loopback-only admission. Open
+`http://127.0.0.1:8082` on the server, or use an SSH tunnel from your workstation:
+
+```sh
+ssh -N -L 8082:127.0.0.1:8082 your-user@your-server
+```
+
+Then open `http://localhost:8082`. For LAN access, pass your own `--bind`,
+`--networks` and `--hosts` values to the installer. Hosts are matched exactly,
+including a non-default port; admission uses the connecting client/proxy IP,
+not forwarded IP headers.
+
+**There is no built-in WebUI authentication. Every admitted client can
+administer the game.** Public access requires an authenticated HTTPS reverse
+proxy and a firewall preventing direct backend access. Optional SSO identity
+and logout settings are display/integration features, not authorization.
+
+## Configuration
+
+| Installed file | Purpose |
 |---|---|
-| Console journal | `sudo journalctl -u satisfactory-webui -n 100 --no-pager` |
-| Game journal | `sudo journalctl -u satisfactory -n 200 --no-pager` |
-| Disable console | `sudo systemctl disable --now satisfactory-webui` |
-| Tests | `python3 -m unittest discover -s tests -v` |
-| Frontend typecheck | `cd frontend && npx tsc --noEmit` (developer machine only) |
-| Frontend build | `cd frontend && npm install && node node_modules/vite/bin/vite.js build` |
-| Frontend regressions | `node --test tests/test_frontend.js` (developer machine only; no npm packages) |
+| `/etc/satisfactory-webui/webui.env` | Runtime configuration |
+| `/etc/satisfactory-webui/update.conf` | Root-owned update-helper account, paths and service policy |
+| `/etc/satisfactory-webui/secrets.env` | Optional credentials; create root-owned with mode `0600` |
+| `/etc/systemd/system/satisfactory-webui.service` | Generated sandboxed console unit |
+| `/etc/sudoers.d/satisfactory-webui` | Generated game-control allowlist |
+| `/var/lib/satisfactory-webui` | Installed service's history, backups, branding and update log |
 
-### Frontend (React SPA)
+Runtime settings are shared through `satisfactory_webui/config.py` and the
+environment:
 
-The UI is a React 19 + TypeScript single-page app: Vite 7, Tailwind CSS 4,
-Motion, Recharts and lucide-react. Source lives in `frontend/`; the **built
-output is committed** to `satisfactory_webui/web/app/` and served by the same
-Python stdlib server. The target host needs **no Node toolchain at runtime**.
+| Variable | Default / purpose |
+|---|---|
+| `SATISFACTORY_BIND`, `SATISFACTORY_PORT` | `127.0.0.1`, `8082`; IPv4 listener |
+| `SATISFACTORY_NETWORKS` | `127.0.0.0/8`; admitted IPv4 CIDRs |
+| `SATISFACTORY_HOSTS` | Bind address, loopback and localhost with the configured port |
+| `SATISFACTORY_SERVER_DIR` | `~/server` |
+| `SATISFACTORY_SAVE_DIR` | `~/.config/Epic/FactoryGame/Saved/SaveGames/server` |
+| `SATISFACTORY_CONFIG_DIR` | `SERVER_DIR/FactoryGame/Saved/Config/LinuxServer` |
+| `SATISFACTORY_STATE_DIR` | Without the installer: `$XDG_STATE_HOME/satisfactory-webui`, falling back to `~/.local/state/satisfactory-webui` |
+| `SATISFACTORY_SERVICE` | `satisfactory.service` |
+| `SATISFACTORY_CGROUP` | `/sys/fs/cgroup/system.slice/SERVICE`; override for custom slices |
+| `SATISFACTORY_STEAM_MANIFEST` | `SERVER_DIR/steamapps/appmanifest_1690800.acf` |
+| `SATISFACTORY_GAME_METADATA` | `SERVER_DIR/Engine/Binaries/Linux/FactoryServer-Linux-Shipping.version` |
+| `SATISFACTORY_API_URL` | `https://127.0.0.1:7777/api/v1` |
+| `SATISFACTORY_API_TOKEN` | Optional game API bearer token |
+| `SATISFACTORY_API_VERIFY_TLS` | `0` for numeric loopback, `1` otherwise; remote verification cannot be disabled |
+| `SATISFACTORY_UPDATE_HELPER` | `/usr/local/sbin/satisfactory-server-update` |
+| `SATISFACTORY_SSO_LOGOUT`, `SATISFACTORY_SSO_RETURN` | Optional proxy logout/return URLs; unset by default |
+
+For tokenless local game API access, configure the game's
+`AllowInsecureLocalAccess=1` setting. Otherwise supply a valid
+`SATISFACTORY_API_TOKEN` in `secrets.env`. Remote game APIs require trusted TLS
+certificates. The API client does not use environment proxies or follow redirects.
+
+Rerun the installer when changing the game account, unit or sandbox paths so
+runtime settings and privilege policy remain aligned. Custom metadata paths
+outside the bound directories also require matching sandbox access.
+
+## Operations and upgrades
+
+```sh
+sudo systemctl status satisfactory-webui.service
+sudo journalctl -u satisfactory-webui.service -n 100 --no-pager
+sudo systemctl restart satisfactory-webui.service
+sudo systemctl disable --now satisfactory-webui.service
+```
+
+Before upgrading, back up the installed code and generated configuration.
+Update your source, preview with `--dry-run`, and rerun the installer using
+**the same deployment options**. It regenerates `webui.env`, `update.conf`,
+the unit and sudoers; manual edits are not merged. It does not rewrite
+`secrets.env`. Preserve persistent state when rolling back.
+
+Game updates are separate, explicitly confirmed actions that disconnect
+players. Update helpers are limited to one hour; checks to ten minutes. A
+timeout may leave the game stopped: inspect its journal and installed files
+before starting it manually. Output is bounded to 400 lines of at most 2,048
+characters per line.
+
+Backups are local, manual snapshots—not off-host recovery. Limits are 32 files,
+512 MiB total, 64 MiB per file and 64 MiB free-space headroom. Download copies
+to another machine for off-host protection. No automatic backup, update,
+restart schedule or pruning policy is enabled.
+
+## Development and checks
+
+From the repository root:
+
+```sh
+python3 -m unittest discover -s tests -v
+node --test tests/test_frontend.js
+shellcheck deploy/install.sh deploy/satisfactory-server-update deploy/satisfactory-server-update-worker
+uvx ruff check satisfactory_webui deploy/install.py --select F
+uvx bandit -r satisfactory_webui deploy/install.py
+```
+
+Frontend:
 
 ```sh
 cd frontend
-npm install                      # once; esbuild's postinstall script must be approved
-node node_modules/vite/bin/vite.js build   # writes ../satisfactory_webui/web/app/
+npm ci
+npm run typecheck
+npm test
+npm run build
+npm audit
 ```
 
-Rebuild and redeploy whenever anything under `frontend/src/` changes; commit the
-regenerated `web/app/` in the same commit (hashed asset filenames change).
-`/assets/*` is served by a dedicated handler with an extension allowlist and
-`realpath` containment — traversal is rejected with 404. The build emits no
-inline script or style, so the `'self'` CSP is unchanged.
+Commit rebuilt `satisfactory_webui/web/app/` assets with frontend changes.
+`SATISFACTORY_DEV_PROXY` overrides Vite's development API target, which defaults
+to `http://127.0.0.1:8082`.
 
-### Branding and live data
+Review Bandit's TLS and subprocess findings: the self-signed TLS exception is
+restricted to numeric loopback addresses, and subprocesses use argument lists
+rather than shell commands. These findings are not a clean security-audit claim.
 
-- **Branding** (`/branding`) stores name, tagline, accent colour and logo in the
-  systemd StateDirectory (`/var/lib/satisfactory-webui/branding.json` plus
-  `branding/logo.<ext>`), so it survives deploys. `GET /api/branding` reads it,
-  `POST /api/branding` writes it (CSRF required, ≤1 MiB body for the upload),
-  and `GET /api/logo` serves the uploaded image with a sandboxing CSP. The
-  bundled FICSIT emblem is the default placeholder — see THIRD_PARTY_NOTICES.md
-  for its trademark note — and any custom logo or text mark supersedes it.
-- **Live streaming**: `GET /api/stream` is a Server-Sent Events endpoint that
-  pushes the overview snapshot every 3 s and closes after ~10 minutes so the
-  worker thread is not held indefinitely; the browser reconnects automatically.
-  The UI shows a LIVE badge while streaming and silently falls back to polling.
-  Note that a browser automation tool waiting on a page "load" event can appear
-  to hang while the stream is open — navigate on a timer instead.
+## Provenance
 
-## Versioning
-
-| Policy | Detail |
-|---|---|
-| Version source | `satisfactory_webui/__init__.py` |
-| Presentation | Client-rendered footer and header badge on every route, `/api/version` |
-| Releases | SemVer; changes recorded in [CHANGELOG.md](CHANGELOG.md) |
-| Public-ready | Not claimed: authentication and HTTPS are required before public exposure |
-
-### Installed game-server version
-
-Overview and About expose the same `serverVersion` object returned by
-`/api/overview` and `/api/about`, even if the game's HTTPS API is offline:
-
-- **Steam build ID**: root `buildid` in
-  `/home/satisfactory/server/steamapps/appmanifest_1690800.acf` (App ID 1690800),
-  not `TargetBuildID`, depot manifest IDs, or a latest-release lookup.
-- **Game version** and **game changelist (CL)**: explicit `GameVersion` and
-  `Changelist` fields in
-  `/home/satisfactory/server/Engine/Binaries/Linux/FactoryServer-Linux-Shipping.version`.
-  Unreal Engine `MajorVersion`/`MinorVersion` are not the game version.
-- Missing/unreadable metadata is **Unknown**, with source paths and errors
-  displayed. Files are read on each request so updates need no WebUI restart.
-  These describe installed files, not proof of which executable a running
-  process loaded. The WebUI footer and `/api/version` remain UI-only SemVer.
-
-The service uses `ProtectHome=tmpfs` with a read-only server directory bind and
-an explicit writable config-directory bind. Binding directories avoids pinning
-old metadata inodes if Steam replaces files during an update. Other home data
-remains hidden. See [systemd sandboxing](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html#ProtectHome=).
-
-Implementation references: [Satisfactory HTTPS API](https://satisfactory.wiki.gg/wiki/Dedicated_servers/HTTPS_API)
-for live game state. In the React frontend, every fetch goes through one
-`useApi` hook that always resolves loading and error state, so a page can never
-strand a spinner (the original vanilla app left lifecycle state set after
-rendering — see the loading-bug history in [CHANGELOG.md](CHANGELOG.md)).
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), `licenses/`, `/credits`
+and [CHANGELOG.md](CHANGELOG.md). The bundled FICSIT emblem is a replaceable
+placeholder with a trademark notice. The console version in
+`satisfactory_webui/__init__.py` is separate from the installed game's version.

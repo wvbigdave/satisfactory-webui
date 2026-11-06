@@ -6,6 +6,38 @@ All notable changes to the Satisfactory WebUI are recorded here. Format follows
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-11-06
+
+### Fixed
+- Require explicit save confirmation in the UI and API, including an overwrite warning.
+- Recover stale process CSRF tokens after a WebUI restart; retry only explicit
+  pre-dispatch CSRF rejections, once, never ambiguous failed mutations.
+- Ignore stale HTTP completions after resource changes, newer requests, stream
+  frames or unmounts; a valid stream frame now resolves the loading state.
+- Show update status as unknown unless both installed and selected-branch build
+  IDs are known. Pass SteamCMD branch arguments to `app_update`, including an
+  explicit public branch when switching back from experimental.
+- Stream successful and failed update output live; bound both memory and disk
+  logs to 400 lines of at most 2,048 characters. Failed checks respect the quota.
+
+### Security
+- Site-neutral runtime configuration and installer: no private IP, domain,
+  account, game path or service name is required. Default admission is loopback;
+  deployment options generate matching sandbox paths and privilege policy.
+- Reject malformed JSON, ambiguous request framing, duplicate Hosts and invalid
+  mutation field types; close rejected body-bearing connections safely.
+- Bound helper output and execution time, synchronize job snapshots and log
+  writes, and use absolute executable paths for backend subprocesses.
+- Keep game API traffic on fixed loopback without environment proxies or
+  redirects; bound responses to 4 MiB. Its self-signed loopback TLS exception
+  remains intentional and is not suitable for remote endpoints.
+- Publish backup snapshots only after verification; bound downloads to their
+  advertised length and serialize branding writes with atomic logo replacement.
+
+### Added
+- Frontend behavioral regression tests (`cd frontend && npm test`) and backend
+  tests for malformed requests, streaming output, timeouts, logs and helper argv.
+
 ### Changed
 - **Server update page** (`/update`): a dedicated section to check for and apply
   Satisfactory server updates. Reads the installed Steam build/version from disk,
@@ -22,10 +54,10 @@ All notable changes to the Satisfactory WebUI are recorded here. Format follows
   default branch; "Experimental" opts into Steam's `-beta experimental`.
 - **HTTPS-proxy support** (`_origin_ok`): the same-Origin CSRF check now accepts
   an `https` scheme as well as `http`, so the console can be served through a
-  TLS-terminating proxy (nginx basic-auth vhost at `satserv.axtriss.site`). The
+  TLS-terminating authenticated proxy. The
   Origin *netloc* must still exactly equal the Host header and be in the
   `SATISFACTORY_HOSTS` allowlist — scheme is transport only. Added
-  `satserv.axtriss.site` to the default allowlist in `deploy/` so a proper
+  the deployment's proxy hostname to its configured allowlist so a proper
   HTTPS front-end remains fully functional (POSTs 403'd previously).
 
 ## [0.6.2] - 2026-11-01

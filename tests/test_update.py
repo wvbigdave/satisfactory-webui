@@ -67,6 +67,9 @@ class UpdateStatusTests(unittest.TestCase):
         }
         self.avail = {"ts": 0.0, "byBranch": {}, "error": None}
         update._job, update._available = self.started_job, self.avail
+        self.state_patch = mock.patch.object(update, 'STATE_DIR', self.dir)
+        self.state_patch.start()
+        self.addCleanup(self.state_patch.stop)
 
     def test_installed_read_from_disk(self):
         info = update._read_installed()
@@ -83,8 +86,7 @@ class UpdateStatusTests(unittest.TestCase):
         # The worker normalizes raw app_info into `AVAILABLE <branch>=<buildid>`
         # lines; update.check() parses exactly that (never raw steamcmd output).
         worker_out = "AVAILABLE public=26281360\nAVAILABLE experimental=26281360\n"
-        with mock.patch("subprocess.run", return_value=mock.Mock(
-                returncode=0, stdout=worker_out, stderr="")):
+        with mock.patch.object(update, '_run_helper', return_value=(0, worker_out.splitlines())):
             update.check()
             # check() returns after spawning the thread; poll for the threaded result.
             import time
@@ -114,6 +116,76 @@ class UpdateStatusTests(unittest.TestCase):
         ok, payload = update.start_update("public")
         self.assertFalse(ok)
         self.assertIn("already running", payload["error"])
+
+    def test_failed_checks_are_also_quota_limited(self):
+        import time
+        update._available = {"ts": time.time(), "byBranch": {}, "error": "Steam offline"}
+        with mock.patch.object(update, '_run_helper') as run:
+            self.assertTrue(update.check()['quotaLimited'])
+            run.assert_not_called()
+
+    def test_validate_requires_a_real_boolean(self):
+        for value in (0, 1, 'yes', [], None):
+            self.assertFalse(update.start_update('public', value)[0])
+
+    def test_persistent_log_is_bounded(self):
+        for i in range(update.LOG_TAIL + 5):
+            update._append_log(str(i) + 'x' * (update.LOG_LINE_CHARS + 10))
+        lines = (self.dir / 'update.log').read_text().splitlines()
+        self.assertEqual(len(lines), update.LOG_TAIL)
+        self.assertTrue(all(len(line) <= update.LOG_LINE_CHARS for line in lines))
+
+    def test_successful_update_keeps_stdout(self):
+        with mock.patch.object(update, '_run_helper', return_value=(0, ['done'])):
+            update._JobThread(['unused'], 'update').run()
+        self.assertEqual(update._job['exitCode'], 0)
+        self.assertFalse(update._job['running'])
+
+
+class HelperOutputTests(unittest.TestCase):
+    def test_output_arrives_before_process_exits(self):
+        import sys
+        import threading
+        seen = threading.Event()
+        release = threading.Event()
+        processes = []
+        real_popen = update.subprocess.Popen
+        def popen(*args, **kwargs):
+            proc = real_popen(*args, **kwargs)
+            processes.append(proc)
+            return proc
+        def append(line):
+            if line == 'progress':
+                seen.set()
+                release.wait(3)
+        result = []
+        with mock.patch.object(update, '_append_log', side_effect=append), \
+                mock.patch.object(update.subprocess, 'Popen', side_effect=popen):
+            thread = threading.Thread(target=lambda: result.append(update._run_helper(
+                [sys.executable, '-u', '-c', "import time; print('progress'); time.sleep(1); print('done')"], 5)))
+            thread.start()
+            try:
+                self.assertTrue(seen.wait(3))
+                self.assertIsNone(processes[0].poll(), 'progress must arrive while the child is running')
+                self.assertTrue(thread.is_alive())
+            finally:
+                release.set()
+                thread.join(5)
+        self.assertEqual(result, [(0, ['progress', 'done'])])
+
+    def test_timeout_terminates_child(self):
+        import sys
+        import subprocess
+        with self.assertRaises(subprocess.TimeoutExpired):
+            update._run_helper([sys.executable, '-c', 'import time; time.sleep(30)'], 0.1)
+
+    def test_no_newline_output_is_bounded(self):
+        import sys
+        with mock.patch.object(update, '_append_log'):
+            code, lines = update._run_helper([sys.executable, '-c', "print('x' * 1000000, end='')"], 5)
+        self.assertEqual(code, 0)
+        self.assertLessEqual(len(lines), update.LOG_TAIL)
+        self.assertTrue(all(len(line) <= update.LOG_LINE_CHARS for line in lines))
 
 
 class ExtractTests(unittest.TestCase):

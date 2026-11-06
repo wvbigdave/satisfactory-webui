@@ -6,14 +6,11 @@ import logging
 import math
 import os
 from pathlib import Path
-import shutil
 import sqlite3
 import threading
 import time
+from .config import STATE_DIR, SAVE_DIR, CGROUP
 
-STATE_DIR = Path(os.environ.get('SATISFACTORY_STATE_DIR', '/var/lib/satisfactory-webui'))
-SAVE_DIR = Path('/home/satisfactory/.config/Epic/FactoryGame/Saved/SaveGames/server')
-CGROUP = Path('/sys/fs/cgroup/system.slice/satisfactory.service')
 INTERVAL = 30
 RETENTION = 7 * 86400
 MAX_SAMPLES = RETENTION // INTERVAL + 1

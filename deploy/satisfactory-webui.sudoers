@@ -1,2 +1,2 @@
-# Fixed allowlist only; no wildcard, daemon-reload, edit or shell commands.
-satisfactory ALL=(root) NOPASSWD: /usr/bin/systemctl start satisfactory.service, /usr/bin/systemctl stop satisfactory.service, /usr/bin/systemctl restart satisfactory.service, /usr/local/sbin/satisfactory-server-update
+# Template rendered by install.py. The root-owned helper validates its argv.
+@USER@ ALL=(root) NOPASSWD: /usr/bin/systemctl start @SERVICE@, /usr/bin/systemctl stop @SERVICE@, /usr/bin/systemctl restart @SERVICE@, /usr/local/sbin/satisfactory-server-update

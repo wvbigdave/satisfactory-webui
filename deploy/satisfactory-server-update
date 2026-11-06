@@ -17,9 +17,19 @@ set -eu
 
 WORKER=/usr/local/sbin/satisfactory-server-update-worker
 APP_ID=1690800
-INSTALL_DIR=/home/satisfactory/server
+# Installer-generated, root-owned policy. Never read settings from the caller's
+# environment or the game account's writable files in this privileged process.
+CONFIG=/etc/satisfactory-webui/update.conf
+if [ ! -r "$CONFIG" ]; then
+    echo "update helper is not configured; run deploy/install.sh --help" >&2
+    exit 3
+fi
+# shellcheck source=/dev/null
+. "$CONFIG"
+: "${GAME_USER:?}" "${GAME_GROUP:?}" "${GAME_HOME:?}" "${INSTALL_DIR:?}" "${STEAMCMD:?}" "${SERVICE:?}"
 
 mode="${1:-}"
+[ "$#" -le 3 ] || { echo "too many arguments" >&2; exit 2; }
 case "$mode" in
   check|update) ;;
   *)
@@ -52,7 +62,10 @@ case "$validate" in
   *) echo "validate must be yes or no" >&2; exit 2 ;;
 esac
 
+runtime=3600
+[ "$mode" != check ] || runtime=600
 exec systemd-run --wait --pipe --collect --quiet \
-  --unit=sat-webui-update --uid=satisfactory --gid=satisfactory \
-  --setenv=HOME=/home/satisfactory \
-  "$WORKER" "$mode" "$APP_ID" "$INSTALL_DIR" "$branch" "$validate"
+  --property="RuntimeMaxSec=$runtime" \
+  --unit=sat-webui-update --uid="$GAME_USER" --gid="$GAME_GROUP" \
+  --setenv="HOME=$GAME_HOME" \
+  "$WORKER" "$mode" "$APP_ID" "$INSTALL_DIR" "$branch" "$validate" "$STEAMCMD" "$SERVICE"

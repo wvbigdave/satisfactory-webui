@@ -63,6 +63,21 @@ class ArchiveTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     archives.create('x.sav')
 
+    def test_snapshot_is_not_published_until_verified(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            source, backup = root / 'saves', root / 'backups'
+            source.mkdir()
+            (source / 'test.sav').write_bytes(b'save')
+            def during_write(_fd):
+                self.assertEqual(archives.list_backups()['files'], [])
+            with mock.patch.object(archives, 'SAVE_DIR', source), \
+                    mock.patch.object(archives, 'BACKUP_DIR', backup), \
+                    mock.patch.object(archives.os, 'fsync', side_effect=during_write):
+                result = archives.create('test')
+                self.assertEqual(archives.list_backups()['files'][0]['name'], result['name'])
+            self.assertEqual(list(backup.glob('*.tmp')), [])
+
 
 class SafetyTests(unittest.TestCase):
     def test_offline_api_not_reported_as_ok(self):

@@ -2,15 +2,13 @@
 import datetime
 import hashlib
 import os
-from pathlib import Path
-import re
 import shutil
 import stat
 import threading
 import uuid
+from .config import SAVE_DIR, STATE_DIR
 
-SAVE_DIR = Path('/home/satisfactory/.config/Epic/FactoryGame/Saved/SaveGames/server')
-BACKUP_DIR = Path(os.environ.get('SATISFACTORY_STATE_DIR', '/var/lib/satisfactory-webui')) / 'backups'
+BACKUP_DIR = STATE_DIR / 'backups'
 MAX_FILE_BYTES = 64 * 1024 * 1024
 MAX_TOTAL_BYTES = 512 * 1024 * 1024
 MAX_FILES = 32
@@ -77,9 +75,10 @@ def create(name):
             raise ValueError('Insufficient disk headroom for backup')
         stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
         dest = BACKUP_DIR / (stamp + '-' + uuid.uuid4().hex[:12] + '.sav')
+        temporary = dest.with_suffix('.tmp')
         digest = hashlib.sha256()
         try:
-            with dest.open('xb') as output:
+            with temporary.open('xb') as output:
                 size = 0
                 while True:
                     block = source.read(256*1024)
@@ -95,9 +94,10 @@ def create(name):
             after = os.fstat(source.fileno())
             if (before.st_size, before.st_mtime_ns, before.st_ino) != (after.st_size, after.st_mtime_ns, after.st_ino):
                 raise ValueError('Source changed during snapshot; retry after autosave')
+            os.replace(temporary, dest)
             return {'name': dest.name, 'bytes': size, 'sha256': digest.hexdigest(), 'source': name}
         except Exception:
-            dest.unlink(missing_ok=True)
+            temporary.unlink(missing_ok=True)
             raise
 
 

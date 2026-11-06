@@ -18,9 +18,10 @@ import json
 import os
 import re
 import tempfile
+import threading
 from pathlib import Path
+from .config import STATE_DIR
 
-STATE_DIR = Path(os.environ.get("SATISFACTORY_STATE_DIR", "/var/lib/satisfactory-webui"))
 BRANDING_FILE = STATE_DIR / "branding.json"
 LOGO_DIR = STATE_DIR / "branding"
 
@@ -50,6 +51,7 @@ DEFAULTS = {
     "accent": "#ff963e",
     "logo": None,
 }
+_lock = threading.RLock()
 
 
 def _clip(value, limit):
@@ -60,6 +62,11 @@ def _clip(value, limit):
 
 def load():
     """Return the current branding merged over defaults. Never raises."""
+    with _lock:
+        return _load()
+
+
+def _load():
     data = dict(DEFAULTS)
     try:
         with open(BRANDING_FILE, encoding="utf-8") as f:
@@ -98,6 +105,11 @@ def _write_atomic(payload):
 
 def save(body):
     """Validate and persist branding. Raises ValueError on bad input."""
+    with _lock:
+        return _save(body)
+
+
+def _save(body):
     current = load()
     name = _clip(body.get("name"), MAX_NAME)
     if not name:
@@ -114,13 +126,19 @@ def save(body):
     if clear and upload:
         raise ValueError("cannot both clear and upload a logo")
     if clear:
-        _remove_logo_file()
         logo = None
     elif upload is not None:
         logo = _store_logo(upload)
 
     payload = {"name": name, "tagline": tagline, "mark": mark, "accent": accent, "logo": logo}
     _write_atomic(payload)
+    if clear:
+        _remove_logo_file()
+    elif upload is not None:
+        target = logo_path(logo)
+        for path in LOGO_DIR.glob("logo.*"):
+            if path != target:
+                path.unlink(missing_ok=True)
     return payload
 
 
@@ -152,12 +170,15 @@ def _store_logo(data_url):
         raise ValueError(f"logo exceeds {MAX_LOGO_BYTES // 1024} KiB")
 
     LOGO_DIR.mkdir(parents=True, exist_ok=True)
-    _remove_logo_file()
     target = LOGO_DIR / f"logo.{kind}"
     fd, tmp = tempfile.mkstemp(dir=str(LOGO_DIR), prefix=".logo-")
-    with os.fdopen(fd, "wb") as f:
-        f.write(blob)
-    os.replace(tmp, target)
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(blob)
+        os.replace(tmp, target)
+    finally:
+        Path(tmp).unlink(missing_ok=True)
+    # Old formats are removed only after branding.json commits successfully.
     return LOGO_TYPES[kind]
 
 

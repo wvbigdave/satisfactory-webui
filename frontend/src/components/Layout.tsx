@@ -45,7 +45,7 @@ function SSOChip() {
     <div className="flex items-center gap-2 rounded-md border border-edge bg-panel2/70 px-2.5 py-1.5 text-[11px] text-muted">
       <span className="max-w-[160px] truncate font-semibold text-ink">{sso.user}</span>
       <span className="text-edge">|</span>
-      <a href={sso.logoutUrl} rel="noopener" className="hover:text-accent">Logout</a>
+      {sso.logoutUrl && <a href={sso.logoutUrl} rel="noopener" className="hover:text-accent">Logout</a>}
     </div>
   );
 }

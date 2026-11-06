@@ -146,7 +146,7 @@ export interface UpdateData {
   helper: string;
 }
 
-export interface LogsData { text: string }
+export interface LogsData { text: string; service?: string }
 
 let csrfToken = "";
 
@@ -160,7 +160,7 @@ async function getJSON<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-async function postJSON<T>(path: string, body: unknown): Promise<T> {
+async function postJSON<T>(path: string, body: unknown, retryCsrf = true): Promise<T> {
   if (!csrfToken) csrfToken = (await getJSON<{ csrf: string }>("/api/session")).csrf;
   const res = await fetch(path, {
     method: "POST",
@@ -168,7 +168,13 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
     headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
     body: JSON.stringify(body),
   });
-  const data = (await res.json().catch(() => ({}))) as T & { error?: string };
+  const data = (await res.json().catch(() => ({}))) as T & { error?: string; code?: string };
+  // Only replay an explicit pre-dispatch CSRF rejection, never an ambiguous
+  // network failure or another 403 (which could duplicate a mutation).
+  if (res.status === 403 && data.code === "invalid_csrf" && retryCsrf) {
+    csrfToken = (await getJSON<{ csrf: string }>("/api/session")).csrf;
+    return postJSON<T>(path, body, false);
+  }
   if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
   return data;
 }
@@ -194,7 +200,7 @@ export const api = {
     postJSON<Branding>("/api/branding", payload),
   applyOptions: (updated: Record<string, string>) => postJSON("/api/apply-options", { updated }),
   applyAdvanced: (updated: Record<string, string>) => postJSON("/api/apply-advanced", { updated }),
-  saveNow: (name: string) => postJSON("/api/save", { name }),
+  saveNow: (name: string) => postJSON("/api/save", { name, confirm: true }),
   load: (session: string, save: string) => postJSON("/api/load", { session, save, confirm: true }),
   deleteSave: (session: string, save: string) => postJSON("/api/delete-save", { session, save, confirm: true }),
   deleteSession: (session: string) => postJSON("/api/delete-session", { session, confirm: true }),

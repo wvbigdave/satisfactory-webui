@@ -1,20 +1,45 @@
-"""Satisfactory HTTPS API client — loopback only, unverified TLS.
+"""Satisfactory HTTPS API client — configurable HTTPS, loopback by default.
 
 The server runs with FG.DedicatedServer.AllowInsecureLocalAccess=1 in
 Engine.ini, so the HTTPS API on 127.0.0.1:7777 answers without an auth token.
-This module is the single place that talks to the game API; the WebUI never
+An optional SATISFACTORY_API_TOKEN supports authenticated game APIs. Remote
+endpoints always require verified TLS. This is the single game API client; the WebUI never
 talks to the game directly. All functions are pinned to the documented
 Satisfactory HTTPS API (satisfactory.wiki.gg/wiki/Dedicated_servers/HTTPS_API).
 """
 import json
+import ipaddress
+import os
 import ssl
 import threading
-import time
 from urllib import request, error
+from urllib.parse import urlparse
 
-API = "https://127.0.0.1:7777/api/v1"
-CTX = ssl._create_unverified_context()
+API = os.environ.get("SATISFACTORY_API_URL", "https://127.0.0.1:7777/api/v1")
+_url = urlparse(API)
+if _url.scheme != 'https' or not _url.hostname or _url.username or _url.password or _url.query or _url.fragment:
+    raise ValueError("SATISFACTORY_API_URL must be an HTTPS URL without credentials, query or fragment")
+try:
+    _loopback = ipaddress.ip_address(_url.hostname).is_loopback
+except ValueError:
+    _loopback = False
+_verify = os.environ.get('SATISFACTORY_API_VERIFY_TLS', '0' if _loopback else '1')
+if _verify not in ('0', '1') or (_verify == '0' and not _loopback):
+    raise ValueError("TLS verification may only be disabled for a numeric loopback API address")
+# The dedicated server uses a self-signed certificate. This exception is only
+# for the fixed loopback endpoint; redirects and environment proxies are denied.
+CTX = ssl.create_default_context() if _verify == '1' else ssl._create_unverified_context()
 TIMEOUT = 6
+MAX_RESPONSE_BYTES = 4 * 1024 * 1024
+
+
+class _NoRedirect(request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise error.HTTPError(req.full_url, code, "game API redirects are not allowed", headers, fp)
+
+
+_opener = request.build_opener(request.ProxyHandler({}),
+                               request.HTTPSHandler(context=CTX), _NoRedirect())
 
 # Functions that require admin privileges on the game server. With
 # AllowInsecureLocalAccess=1 on loopback they still answer without a token.
@@ -37,9 +62,17 @@ def call(fn, data=None):
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with request.urlopen(req, context=CTX, timeout=TIMEOUT) as r:
-        body = r.read()
-        return json.loads(body) if body else {"status": r.status}
+    token = os.environ.get('SATISFACTORY_API_TOKEN')
+    if token:
+        req.add_header('Authorization', 'Bearer ' + token)
+    with _opener.open(req, timeout=TIMEOUT) as r:
+        body = r.read(MAX_RESPONSE_BYTES + 1)
+        if len(body) > MAX_RESPONSE_BYTES:
+            raise ValueError("game API response exceeds 4 MiB")
+        result = json.loads(body) if body else {"status": r.status}
+        if not isinstance(result, dict):
+            raise ValueError("game API response must be an object")
+        return result
 
 
 def safe_call(fn, data=None):
@@ -48,7 +81,9 @@ def safe_call(fn, data=None):
         return True, call(fn, data)
     except error.HTTPError as e:
         try:
-            return False, json.loads(e.read(8192))
+            with e:
+                result = json.loads(e.read(8192))
+            return False, result if isinstance(result, dict) else {"error": "invalid game API error response"}
         except ValueError:
             return False, {"error": "HTTP " + str(e.code)}
     except (OSError, ValueError) as e:

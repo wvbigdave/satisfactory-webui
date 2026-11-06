@@ -20,8 +20,15 @@ export default function Saves() {
     finally { setBusy(""); }
   }
 
-  const saveNow = () =>
-    act("save", () => api.saveNow(name.trim()), `Saved “${name.trim()}”.`);
+  async function saveNow() {
+    const save = name.trim();
+    const ok = await confirm({
+      title: "Save the current world?",
+      body: `Save as “${save}”. If this name already exists, it will be overwritten. Take a snapshot first if you need the previous version.`,
+      danger: true, confirmLabel: "Save world",
+    });
+    if (ok) await act("save", () => api.saveNow(save), `Saved “${save}”.`);
+  }
 
   async function load(session: string, save: string) {
     const ok = await confirm({

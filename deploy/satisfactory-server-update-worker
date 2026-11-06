@@ -20,8 +20,8 @@ INSTALL_DIR="${3:?installdir}"
 branch="${4:-public}"
 validate="${5:-no}"
 
-STEAMCMD=/usr/games/steamcmd
-SERVICE=satisfactory.service
+STEAMCMD="${6:?steamcmd executable}"
+SERVICE="${7:?game systemd unit}"
 
 case "$branch" in
   public|experimental) ;;
@@ -44,7 +44,7 @@ if [ ! -d "$INSTALL_DIR" ]; then
 fi
 # Resolve to the intended canonical path to avoid surprises with a symlinked dir.
 canon="$(realpath "$INSTALL_DIR")"
-if [ "$canon" != "$INSTALL_DIR" ] && [ "$canon" != /home/satisfactory/server ]; then
+if [ "$canon" != "$INSTALL_DIR" ]; then
   echo "unexpected install directory: $canon" >&2
   exit 3
 fi
@@ -115,11 +115,9 @@ PY
       test_active_before=1
     fi
 
-    args=(+force_install_dir "$INSTALL_DIR" +login anonymous)
-    if [ "$branch" != public ]; then
-      args+=(-beta "$branch")
-    fi
-    args+=(+app_update "$APP_ID")
+    # -beta belongs to app_update, not to steamcmd's global argv. Explicitly
+    # select public too, so switching back from experimental clears that branch.
+    args=(+force_install_dir "$INSTALL_DIR" +login anonymous +app_update "$APP_ID" -beta "$branch")
     if [ "$validate" = yes ]; then
       args+=(validate)
     fi

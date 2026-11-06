@@ -7,11 +7,11 @@ the game server, so this must never be exposed through a public proxy without
 adding auth and HTTPS first.
 """
 import json
+import ipaddress
 import os
 import re
 import secrets
 import shutil
-import socket
 import subprocess
 import threading
 import time
@@ -20,34 +20,35 @@ from urllib.parse import urlparse, parse_qs, quote
 
 from . import __version__
 from . import api, control, fields, monitor, archives, branding, update
+from . import config
 
 # --- Configuration (overridable via environment) ---------------------------
-BIND = os.environ.get("SATISFACTORY_BIND", "192.168.4.60")
+BIND = os.environ.get("SATISFACTORY_BIND", "127.0.0.1")
 PORT = int(os.environ.get("SATISFACTORY_PORT", "8082"))
 # Comma-separated CIDR subnets admitted in addition to loopback.
 NETWORKS = os.environ.get(
-    "SATISFACTORY_NETWORKS", "192.168.4.0/22,127.0.0.0/8"
+    "SATISFACTORY_NETWORKS", "127.0.0.0/8"
 ).split(",")
 # Exact Host header allowlist (comma-separated).
 # SSO boundary (Authelia public vhost): the proxy forwards the authenticated
 # identity as the HTTP `Remote-User` header once the user has passed auth; the
 # logout endpoint returns to the app. `rd` is the URL-encoded return address.
 SSO_LOGOUT_URL = os.environ.get(
-    "SATISFACTORY_SSO_LOGOUT", "https://auth.axtriss.site/logout"
+    "SATISFACTORY_SSO_LOGOUT", ""
 )
-SSO_RETURN_URL = os.environ.get("SATISFACTORY_SSO_RETURN", "https://satserv.axtriss.site")
+SSO_RETURN_URL = os.environ.get("SATISFACTORY_SSO_RETURN", "")
 
 HOSTS = os.environ.get(
     "SATISFACTORY_HOSTS",
-    "192.168.4.60:8082,127.0.0.1:8082,localhost:8082,satisfactory:8082",
+    f"{BIND}:{PORT},127.0.0.1:{PORT},localhost:{PORT}",
 ).split(",")
 
 WEB_DIR = os.path.join(os.path.dirname(__file__), "web")
-CONFIG_DIR = "/home/satisfactory/server/FactoryGame/Saved/Config/LinuxServer"
+CONFIG_DIR = str(config.CONFIG_DIR)
 ENGINE_INI = os.path.join(CONFIG_DIR, "Engine.ini")
 GAMEUSER_INI = os.path.join(CONFIG_DIR, "GameUserSettings.ini")
-STEAM_MANIFEST = "/home/satisfactory/server/steamapps/appmanifest_1690800.acf"
-GAME_METADATA = "/home/satisfactory/server/Engine/Binaries/Linux/FactoryServer-Linux-Shipping.version"
+STEAM_MANIFEST = str(config.STEAM_MANIFEST)
+GAME_METADATA = str(config.GAME_METADATA)
 
 _csrf = secrets.token_urlsafe(32)
 _poll_lock = threading.Lock()
@@ -57,24 +58,20 @@ POLL_TTL = 2.0
 
 # --- IP / Host admission ----------------------------------------------------
 def _ip_to_int(ip):
-    return int.from_bytes(socket.inet_aton(ip), "big")
+    return int(ipaddress.IPv4Address(ip))
 
 
 def _net_to_range(cidr):
-    net, _, bits = cidr.partition("/")
-    base = _ip_to_int(net)
-    mask = (0xFFFFFFFF << (32 - int(bits))) & 0xFFFFFFFF
-    return base & mask, base | (~mask & 0xFFFFFFFF)
+    network = ipaddress.IPv4Network(cidr, strict=False)
+    return int(network.network_address), int(network.broadcast_address)
 
 
 _RANGES = []
 for c in NETWORKS:
     c = c.strip()
     if c:
-        try:
-            _RANGES.append(_net_to_range(c))
-        except Exception:
-            pass
+        # Invalid CIDRs must fail startup, never accidentally widen admission.
+        _RANGES.append(_net_to_range(c))
 
 
 def _client_ip(handler):
@@ -107,6 +104,7 @@ def _fetch_state():
             "advanced": None, "sessions": None, "latestSave": None,
             "saveCount": 0, "service": None,
         }
+        out["service"] = control.status()
         try:
             out["health"] = api.health()
             out["state"] = api.server_state()
@@ -114,9 +112,9 @@ def _fetch_state():
             out["advanced"] = api.advanced_settings()
             sess = api.sessions()
             out["sessions"] = sess
-            out["latestSave"] = api.latest_save(sess)
-            out["saveCount"] = api.save_count(sess)
-            out["service"] = control.status()
+            # None means enumeration failed; do not silently retry it twice.
+            out["latestSave"] = api.latest_save(sess) if sess is not None else None
+            out["saveCount"] = api.save_count(sess) if sess is not None else 0
             out["ok"] = out["state"] is not None and out["health"] is not None
             if not out["ok"]:
                 out["error"] = "Game HTTPS API unavailable; Linux monitoring remains available"
@@ -129,7 +127,7 @@ def _fetch_state():
 
 def _disk():
     try:
-        st = shutil.disk_usage("/home/satisfactory/server")
+        st = shutil.disk_usage(config.SERVER_DIR)
         return {"total": st.total, "used": st.used, "free": st.free}
     except Exception:
         return None
@@ -138,7 +136,7 @@ def _disk():
 def _journal_tail(lines=200, max_bytes=262144):
     try:
         proc = subprocess.run(
-            ["journalctl", "-u", "satisfactory.service", "-n", str(lines),
+            ["/usr/bin/journalctl", "-u", config.SERVICE, "-n", str(lines),
              "--no-pager", "-o", "short-iso"],
             capture_output=True, text=True, timeout=15,
         )
@@ -211,7 +209,10 @@ def _send_asset(handler, path):
     if not (target == root or target.startswith(root + os.sep)):
         _send_json(handler, {"error": "not found"}, 404)
         return
-    content_type = ASSET_TYPES.get(os.path.splitext(target)[1].lower(), "application/octet-stream")
+    content_type = ASSET_TYPES.get(os.path.splitext(target)[1].lower())
+    if not content_type:
+        _send_json(handler, {"error": "not found"}, 404)
+        return
     _send_file(handler, target, content_type)
 
 
@@ -253,17 +254,23 @@ def _post_branding(body):
 
 
 def _read_body(handler, limit=65536):
+    if handler.headers.get("Transfer-Encoding"):
+        raise ValueError("Transfer-Encoding is not supported")
+    if len(handler.headers.get_all("Content-Length", [])) != 1:
+        raise ValueError("exactly one Content-Length header is required")
     length = int(handler.headers.get("Content-Length", 0) or 0)
     if length > limit or length < 0:
         raise ValueError(f"request body exceeds {limit // 1024} KiB")
     if length <= 0:
-        return {}
+        raise ValueError("a JSON object is required")
     raw = handler.rfile.read(length)
     try:
         body = json.loads(raw)
-        return body if isinstance(body, dict) else {}
+        if not isinstance(body, dict):
+            raise ValueError("a JSON object is required")
+        return body
     except ValueError:
-        return {}
+        raise ValueError("a valid JSON object is required") from None
 
 
 def _origin_ok(handler):
@@ -342,7 +349,7 @@ def _route_config():
 
 
 def _route_logs():
-    return {"text": _journal_tail()}
+    return {"text": _journal_tail(), "service": config.SERVICE}
 
 
 def _route_about():
@@ -367,23 +374,35 @@ def _route_sso(headers):
     but the logout URL is always provided so the UI can render the portal link.
     """
     user = headers.get("Remote-User") or None
-    logout_url = f"{SSO_LOGOUT_URL}?rd={quote(SSO_RETURN_URL, safe='')}"
+    logout_url = SSO_LOGOUT_URL
+    if logout_url and SSO_RETURN_URL:
+        separator = '&' if '?' in logout_url else '?'
+        logout_url += f"{separator}rd={quote(SSO_RETURN_URL, safe='')}"
     return {"user": user, "logoutUrl": logout_url, "authenticated": user is not None}
 
 
 def _listeners():
     try:
-        proc = subprocess.run(["ss", "-tlnp"], capture_output=True, text=True, timeout=10)
+        proc = subprocess.run(["/usr/bin/ss", "-tlnp"], capture_output=True, text=True, timeout=10)
         return proc.stdout
     except Exception:
         return "ss unavailable"
 
 
 # --- POST handlers ----------------------------------------------------------
+def _text(body, key, default=""):
+    value = body.get(key, default)
+    if not isinstance(value, str):
+        raise ValueError(f"{key} must be a string")
+    return value.strip()
+
+
 def _post_apply_options(body):
     updated = body.get("updated") or {}
     if not isinstance(updated, dict) or not updated:
         return {"error": "no options to apply"}, 400
+    if any(not isinstance(value, str) for value in updated.values()):
+        raise ValueError("option values must be strings")
     ok, d = api.apply_options(updated)
     if not ok:
         return {"error": d.get("errorMessage") or d.get("errorCode") or str(d)}, 400
@@ -394,6 +413,8 @@ def _post_apply_advanced(body):
     updated = body.get("updated") or {}
     if not isinstance(updated, dict) or not updated:
         return {"error": "no settings to apply"}, 400
+    if any(not isinstance(value, str) for value in updated.values()):
+        raise ValueError("setting values must be strings")
     ok, d = api.apply_advanced(updated)
     if not ok:
         return {"error": d.get("errorMessage") or d.get("errorCode") or str(d)}, 400
@@ -401,7 +422,11 @@ def _post_apply_advanced(body):
 
 
 def _post_save(body):
-    name = (body.get("name") or "").strip()
+    # Always confirm: checking a cached list first cannot safely rule out an
+    # overwrite, and the game API has no atomic create-only operation.
+    if body.get("confirm") is not True:
+        return {"error": "explicit confirmation required"}, 400
+    name = _text(body, "name")
     if not name:
         return {"error": "save name required"}, 400
     ok, d = api.save_game(name)
@@ -413,8 +438,8 @@ def _post_save(body):
 def _post_load(body):
     if body.get("confirm") is not True:
         return {"error": "explicit confirmation required"}, 400
-    session = (body.get("session") or "").strip()
-    save = (body.get("save") or "").strip()
+    session = _text(body, "session")
+    save = _text(body, "save")
     if not session or not save:
         return {"error": "session and save required"}, 400
     ok, d = api.load_game(session, save)
@@ -426,8 +451,8 @@ def _post_load(body):
 def _post_delete_save(body):
     if body.get("confirm") is not True:
         return {"error": "explicit confirmation required"}, 400
-    session = (body.get("session") or "").strip()
-    save = (body.get("save") or "").strip()
+    session = _text(body, "session")
+    save = _text(body, "save")
     if not session or not save:
         return {"error": "session and save required"}, 400
     ok, d = api.delete_save_file(session, save)
@@ -439,7 +464,7 @@ def _post_delete_save(body):
 def _post_delete_session(body):
     if body.get("confirm") is not True:
         return {"error": "explicit confirmation required"}, 400
-    session = (body.get("session") or "").strip()
+    session = _text(body, "session")
     if not session:
         return {"error": "session required"}, 400
     ok, d = api.delete_save_session(session)
@@ -449,7 +474,7 @@ def _post_delete_session(body):
 
 
 def _post_command(body):
-    cmd = (body.get("command") or "").strip()
+    cmd = _text(body, "command")
     if not cmd:
         return {"error": "command required"}, 400
     ok, d = api.run_command(cmd)
@@ -497,7 +522,9 @@ def _post_update_check(body):
 def _post_update_start(body):
     if body.get("confirm") is not True:
         return {"error": "explicit confirmation required"}, 400
-    branch = (body.get("branch") or "").strip() or "public"
+    branch = _text(body, "branch") or "public"
+    if "validate" in body and type(body["validate"]) is not bool:
+        raise ValueError("validate must be a boolean")
     ok, payload = update.start_update(branch, validate=body.get("validate") is True)
     if not ok:
         return payload, 400
@@ -516,6 +543,8 @@ class Handler(BaseHTTPRequestHandler):
         self.connection.settimeout(30)
 
     def _security_headers(self):
+        if self.close_connection:
+            self.send_header("Connection", "close")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
@@ -525,9 +554,11 @@ class Handler(BaseHTTPRequestHandler):
 
     def _check(self):
         if not _admitted(_client_ip(self)):
+            self.close_connection = True
             _send_json(self, {"error": "network rejected"}, 403)
             return False
-        if not _host_ok(self.headers.get("Host", "")):
+        if len(self.headers.get_all("Host", [])) != 1 or not _host_ok(self.headers.get("Host", "")):
+            self.close_connection = True
             _send_json(self, {"error": "host rejected"}, 403)
             return False
         return True
@@ -592,14 +623,26 @@ class Handler(BaseHTTPRequestHandler):
                 name = parse_qs(urlparse(self.path).query).get("name", [""])[0]
                 opener = archives.open_save if path.endswith("-save") else archives.open_backup
                 with opener(name) as source:
+                    remaining = os.fstat(source.fileno()).st_size
                     self.send_response(200)
                     self.send_header("Content-Type", "application/octet-stream")
                     from urllib.parse import quote
                     self.send_header("Content-Disposition", "attachment; filename*=UTF-8''" + quote(name, safe=""))
                     self.send_header("Cache-Control", "no-store")
-                    self.send_header("Content-Length", str(os.fstat(source.fileno()).st_size))
+                    self.send_header("Content-Length", str(remaining))
                     self.end_headers()
-                    shutil.copyfileobj(source, self.wfile, 256*1024)
+                    # The live save may change after headers. Never send beyond
+                    # Content-Length and corrupt a keep-alive connection.
+                    try:
+                        while remaining:
+                            block = source.read(min(remaining, 256*1024))
+                            if not block:
+                                self.close_connection = True
+                                break
+                            self.wfile.write(block)
+                            remaining -= len(block)
+                    except OSError:
+                        self.close_connection = True
             except (OSError, ValueError) as e:
                 _send_json(self, {"error": str(e)}, 400)
         elif path == "/api/credits":
@@ -628,10 +671,12 @@ class Handler(BaseHTTPRequestHandler):
         if not self._check():
             return
         if not _origin_ok(self):
+            self.close_connection = True
             _send_json(self, {"error": "cross-origin request rejected"}, 403)
             return
         if self.headers.get("X-CSRF-Token") != _csrf:
-            _send_json(self, {"error": "invalid CSRF token"}, 403)
+            self.close_connection = True
+            _send_json(self, {"error": "invalid CSRF token", "code": "invalid_csrf"}, 403)
             return
         path = urlparse(self.path).path
         # Branding accepts a logo upload, so it gets a larger bounded body.

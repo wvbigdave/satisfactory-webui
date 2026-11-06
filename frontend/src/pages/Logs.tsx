@@ -40,7 +40,7 @@ export default function Logs() {
       {error && !data && <ErrorBox message={error} />}
       {data && (
         <Panel glow={false}>
-          <SectionHead title="journalctl · satisfactory.service" hint={live ? "Refreshing every 5s" : "Paused"} />
+          <SectionHead title={`journalctl · ${data?.service ?? "game service"}`} hint={live ? "Refreshing every 5s" : "Paused"} />
           <pre className="max-h-[68vh] overflow-auto rounded-md border border-edge bg-bg p-4 font-mono text-[11.5px] leading-relaxed whitespace-pre-wrap break-words">
             {lines.join("\n") || "(no matching lines)"}
           </pre>
