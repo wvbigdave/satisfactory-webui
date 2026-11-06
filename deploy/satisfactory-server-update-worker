@@ -11,10 +11,6 @@
 #           run steamcmd app_update for the branch (optionally `validate`),
 #           then start the game service again. Streams output throughout.
 #
-# The game service is stopped before files change and restarted on success so
-# the running process never sees a half-written install. The satisfactory user
-# holds the fixed sudo rights to control satisfactory.service (control.py).
-#
 # All input is argv-fixed from the caller; no shell expansion reaches steamcmd.
 set -euo pipefail
 
@@ -36,6 +32,23 @@ case "$validate" in
   *) echo "validate must be yes or no" >&2; exit 2 ;;
 esac
 
+# --- Hardening: fail loudly before touching anything if the environment is
+# --- wrong, rather than letting steamcmd or systemctl fail obscurely later.
+if [ ! -x "$STEAMCMD" ]; then
+  echo "steamcmd binary not found/executable: $STEAMCMD" >&2
+  exit 3
+fi
+if [ ! -d "$INSTALL_DIR" ]; then
+  echo "install directory missing: $INSTALL_DIR" >&2
+  exit 3
+fi
+# Resolve to the intended canonical path to avoid surprises with a symlinked dir.
+canon="$(realpath "$INSTALL_DIR")"
+if [ "$canon" != "$INSTALL_DIR" ] && [ "$canon" != /home/satisfactory/server ]; then
+  echo "unexpected install directory: $canon" >&2
+  exit 3
+fi
+
 stop_service() {
   echo ">>> stopping $SERVICE (game)"
   sudo -n systemctl stop "$SERVICE"
@@ -56,12 +69,28 @@ case "$mode" in
   check)
     # Resolve buildids without installing. Extract each branch name + its
     # leading buildid from the `branches` block of steamcmd's app_info output.
-    "$STEAMCMD" +force_install_dir "$INSTALL_DIR" +login anonymous \
-      +app_info_update 1 +app_info_print "$APP_ID" +quit 2>/dev/null \
-    | python3 -c '
+    #
+    # steamcmd's output is captured to a temp file and passed to the parser by
+    # argv, NOT piped: `python3 <<'PY'` connects python's stdin to the heredoc,
+    # so `steamcmd ... | python3 <<'PY'` would hand steamcmd's output to nothing
+    # (broken pipe) and python would read an empty stdin. A heredoc makes both
+    # the regex and the surrounding shell quoting safe — single quotes inside
+    # cost nothing (the old `python3 -c '...'` form nested a r'...' raw string
+    # inside bash's own single-quoted string, terminating it early and hitting a
+    # bash syntax error at the regex's opening parenthesis).
+    tmp_appinfo="$(mktemp)"
+    trap 'rm -f "$tmp_appinfo"' EXIT
+    if ! "$STEAMCMD" +force_install_dir "$INSTALL_DIR" +login anonymous \
+        +app_info_update 1 +app_info_print "$APP_ID" +quit 2>/dev/null > "$tmp_appinfo"; then
+      echo "!!! steamcmd app_info failed" >&2
+      exit 4
+    fi
+    python3 - "$tmp_appinfo" <<'PY'
 import re, sys
-text = sys.stdin.read()
-m = re.search(r"\n\s*\"branches\"\s*\{", text)
+path = sys.argv[1]
+with open(path, encoding="utf-8", errors="replace") as f:
+    text = f.read()
+m = re.search(r'\n\s*"branches"\s*\{', text)
 if not m:
     sys.exit(0)
 block = text[m.end():]
@@ -77,9 +106,15 @@ branches_block = block[:i]
 pat = re.compile(r'"([A-Za-z0-9_]+)"\s*\{\s*(?:[^{}]*?)"buildid"\s+"(\d+)"')
 for name, bid in pat.findall(branches_block):
     print(f"AVAILABLE {name}={bid}")
-'
+PY
     ;;
+
   update)
+    test_active_before=0
+    if [ "$(systemctl show "$SERVICE" -p ActiveState --value)" = active ]; then
+      test_active_before=1
+    fi
+
     args=(+force_install_dir "$INSTALL_DIR" +login anonymous)
     if [ "$branch" != public ]; then
       args+=(-beta "$branch")
@@ -92,15 +127,22 @@ for name, bid in pat.findall(branches_block):
 
     stop_service
     echo ">>> running: steamcmd ${args[*]}"
-    "$STEAMCMD" "${args[@]}"
-    rc=$?
+    "$STEAMCMD" "${args[@]}" 2>&1 || rc=$?
+    rc="${rc:-0}"
     echo ">>> steamcmd finished (exit $rc)"
-    if [ $rc -ne 0 ]; then
-      echo "!!! app_update failed; leaving game stopped" >&2
-      exit $rc
+    if [ "$rc" -ne 0 ]; then
+      echo "!!! app_update failed" >&2
+      # Restore the game so a "one shot" button failure does not leave the
+      # server down; only if it was up before.
+      if [ "$test_active_before" -eq 1 ]; then
+        echo ">>> restarting $SERVICE (was active before update)"
+        start_service || echo "!!! could not restart $SERVICE" >&2
+      fi
+      exit "$rc"
     fi
     start_service
     ;;
+
   *)
     echo "invalid mode: $mode" >&2; exit 2 ;;
 esac
