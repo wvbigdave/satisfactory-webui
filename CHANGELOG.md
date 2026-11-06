@@ -6,7 +6,7 @@ All notable changes to the Satisfactory WebUI are recorded here. Format follows
 
 ## [Unreleased]
 
-## [0.7.1] - 2026-11-06
+## [0.7.2] - 2026-11-06
 
 ### Fixed
 - Require explicit save confirmation in the UI and API, including an overwrite warning.
