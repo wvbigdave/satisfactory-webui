@@ -118,7 +118,7 @@ export default function App() {
           go={go}
           version={version}
           online={!!snapshot?.ok}
-          health={snapshot?.health || "API offline"}
+          health={snapshot?.health || "Server Offline"}
           session={snapshot?.state?.activeSessionName || ""}
           tick={ageSec}
           branding={branding}

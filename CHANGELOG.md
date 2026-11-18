@@ -6,6 +6,12 @@ All notable changes to the Satisfactory WebUI are recorded here. Format follows
 
 ## [Unreleased]
 
+## [0.7.6] - 2026-11-18
+
+### Changed
+- Offline status badge reads "Server Offline" instead of "API Offline"
+  everywhere the game server is down (top bar, app header, Overview hero).
+
 ## [0.7.5] - 2026-11-18
 
 ### Fixed

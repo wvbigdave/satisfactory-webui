@@ -140,7 +140,7 @@ export function Layout({
           >
             <Search size={12} /> Search <kbd className="rounded border border-edge px-1 text-[9px]">Ctrl K</kbd>
           </button>
-          <StatusPill ok={online}>{online ? health || "Online" : "API offline"}</StatusPill>
+          <StatusPill ok={online}>{online ? health || "Online" : "Server Offline"}</StatusPill>
           <SSOChip />
           <span className="text-[11px] text-muted">v{version}</span>
         </div>

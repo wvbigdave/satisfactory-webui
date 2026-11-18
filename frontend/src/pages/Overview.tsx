@@ -74,7 +74,7 @@ export default function Overview({ branding }: { branding: Branding }) {
   return (
     <>
       <PageTitle title="Overview" note={`Live state sampled ${new Date().toLocaleTimeString()} · streaming`} />
-      <Hero name={g.activeSessionName || "Dedicated server"} tagline={branding.tagline} online={!!d.ok} health={d.health || "API offline"} live={live} />
+      <Hero name={g.activeSessionName || "Dedicated server"} tagline={branding.tagline} online={!!d.ok} health={d.health || "Server Offline"} live={live} />
       {!d.ok && <div className="mb-4"><ErrorBox message={`Server unreachable: ${d.error || "API unavailable"}`} /></div>}
 
       <div className="mb-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
