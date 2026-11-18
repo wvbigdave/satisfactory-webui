@@ -6,6 +6,14 @@ All notable changes to the Satisfactory WebUI are recorded here. Format follows
 
 ## [Unreleased]
 
+## [0.7.4] - 2026-11-18
+
+### Fixed
+- Memory legend over-reported usage by counting reclaimable file page cache:
+  gauge now reads anonymous (committed) memory from cgroup v2 `memory.stat`
+  (`anon`), matching what the hypervisor (Proxmox) reports as the container's
+  memory in use. `memory.current` includes page cache.
+
 ## [0.7.3] - 2026-11-18
 
 ### Changed

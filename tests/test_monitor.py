@@ -38,6 +38,22 @@ class HistoryTests(unittest.TestCase):
         # Never exceeds 100%, even when every core is fully loaded.
         self.assertEqual(monitor.cpu_percent((100, 0), (101, 5000000000), cores=4), 100)
 
+    def test_memory_usage_excludes_page_cache(self):
+        # memory.stat carries anon and file counters; usage must be anon, not memory.current.
+        stat = "anon 2929614848\nfile 4974239744\nkernel 99491840\npagetables 9764864\n"
+        with mock.patch.object(Path, 'read_text', return_value=stat):
+            self.assertEqual(monitor.memory_usage_bytes(), 2929614848)
+
+    def test_resource_source_is_whole_container_cgroup(self):
+        with mock.patch.object(monitor, 'os') as os_mock:
+            os_mock.cpu_count.return_value = 4
+            os_mock.cpu_count.__bool__ = lambda self: True
+            r = monitor.resources()
+            # First sample has no previous baseline, so cpuPercent is unavailable.
+            self.assertEqual(r['cpuCores'], 4)
+            self.assertEqual(r['source'], str(monitor.MACHINE_CGROUP))
+            self.assertIsNotNone(r['memoryMaxBytes'])
+
 
 class ArchiveTests(unittest.TestCase):
     def test_snapshot_download_and_safety(self):

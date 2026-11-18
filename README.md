@@ -2,7 +2,7 @@
 
 **A self-hosted Linux admin console for Satisfactory dedicated servers.**
 
-[![Version 0.7.3](https://badges.axtriss.site/badge/version-0.7.3-blue)](CHANGELOG.md) ![Platform: Linux](https://badges.axtriss.site/badge/platform-Linux-lightgrey?logo=linux) ![Backend: Python 3](https://badges.axtriss.site/badge/backend-Python%203-3776AB?logo=python&logoColor=black) ![Frontend: React](https://badges.axtriss.site/badge/frontend-React-61DAFB?logo=react&logoColor=black) ![Deployment: systemd](https://badges.axtriss.site/badge/deployment-systemd-555555?logo=systemd)
+[![Version 0.7.4](https://badges.axtriss.site/badge/version-0.7.4-blue)](CHANGELOG.md) ![Platform: Linux](https://badges.axtriss.site/badge/platform-Linux-lightgrey?logo=linux) ![Backend: Python 3](https://badges.axtriss.site/badge/backend-Python%203-3776AB?logo=python&logoColor=black) ![Frontend: React](https://badges.axtriss.site/badge/frontend-React-61DAFB?logo=react&logoColor=black) ![Deployment: systemd](https://badges.axtriss.site/badge/deployment-systemd-555555?logo=systemd)
 
 ---
 

@@ -52,12 +52,24 @@ def memory_max_bytes():
     return None
 
 
+def memory_usage_bytes():
+    """Anonymous (committed) memory in the container, excluding page cache.
+
+    Reads the ``anon`` counter from cgroup v2 ``memory.stat`` so the gauge
+    matches what the hypervisor (Proxmox) reports as the container's memory
+    usage. ``memory.current`` includes reclaimable file page cache, which
+    overstates live usage by a large margin on game servers.
+    """
+    stat = dict(line.split() for line in (MACHINE_CGROUP / 'memory.stat').read_text().splitlines())
+    return int(stat['anon'])
+
+
 def resources():
     global _previous
     out = {'memoryBytes': None, 'memoryMaxBytes': None, 'cpuPercent': None,
            'cpuCores': os.cpu_count(), 'source': str(MACHINE_CGROUP), 'error': None}
     try:
-        out['memoryBytes'] = int((MACHINE_CGROUP / 'memory.current').read_text())
+        out['memoryBytes'] = memory_usage_bytes()
         out['memoryMaxBytes'] = memory_max_bytes()
         counters = dict(line.split() for line in (MACHINE_CGROUP / 'cpu.stat').read_text().splitlines())
         current = (time.monotonic(), int(counters['usage_usec']) * 1000)
