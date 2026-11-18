@@ -2,9 +2,31 @@
 
 **A self-hosted Linux admin console for Satisfactory dedicated servers.**
 
-[![Version 0.7.6](https://badges.axtriss.site/badge/version-0.7.6-blue)](CHANGELOG.md) ![Platform: Linux](https://badges.axtriss.site/badge/platform-Linux-lightgrey?logo=linux) ![Backend: Python 3](https://badges.axtriss.site/badge/backend-Python%203-3776AB?logo=python&logoColor=black) ![Frontend: React](https://badges.axtriss.site/badge/frontend-React-61DAFB?logo=react&logoColor=black) ![Deployment: systemd](https://badges.axtriss.site/badge/deployment-systemd-555555?logo=systemd)
+[![Version 0.7.7](https://badges.axtriss.site/badge/version-0.7.7-blue)](CHANGELOG.md) ![Platform: Linux](https://badges.axtriss.site/badge/platform-Linux-lightgrey?logo=linux) ![Backend: Python 3](https://badges.axtriss.site/badge/backend-Python%203-3776AB?logo=python&logoColor=black) ![Frontend: React](https://badges.axtriss.site/badge/frontend-React-61DAFB?logo=react&logoColor=black) ![Deployment: systemd](https://badges.axtriss.site/badge/deployment-systemd-555555?logo=systemd)
 
 ---
+
+## Getting the code
+
+Clone the repository from GitHub (the public mirror of
+`gitea.axtriss.site/wvbigdave/satisfactory-webui`) and install it from the
+clone:
+
+```sh
+git clone https://github.com/wvbigdave/satisfactory-webui.git
+cd satisfactory-webui
+```
+
+If you prefer the self-hosted source, clone from Gitea instead:
+
+```sh
+git clone https://gitea.axtriss.site/wvbigdave/satisfactory-webui.git
+```
+
+Use the [install script](#installation) in the checkout to deploy it. A
+self-contained `install.sh` and automatic-update script are planned for the
+1.0 release; until then, install from a full clone and upgrade by pulling,
+then rerunning the installer.
 
 ## Features
 

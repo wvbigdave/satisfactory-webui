@@ -6,6 +6,13 @@ All notable changes to the Satisfactory WebUI are recorded here. Format follows
 
 ## [Unreleased]
 
+## [0.7.7] - 2026-11-18
+
+### Added
+- README "Getting the code" section: install from a full clone of the public
+  GitHub mirror (or Gitea), and note that a self-contained installer and
+  auto-update script are planned for the 1.0 release.
+
 ## [0.7.6] - 2026-11-18
 
 ### Changed
