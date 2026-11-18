@@ -30,8 +30,13 @@ class HistoryTests(unittest.TestCase):
             self.assertEqual(sample['memoryBytes'], 12)
 
     def test_cpu_counter_restart_is_not_negative(self):
-        self.assertIsNone(monitor.cpu_percent((100, 200), (90, 10)))
-        self.assertEqual(monitor.cpu_percent((100, 2000000000), (102, 3000000000)), 50)
+        self.assertIsNone(monitor.cpu_percent((100, 200), (90, 10)))  # negative elapsed
+        # 1e9 ns of CPU over 2 s = 50% of one core; cores divisor defaults to os.cpu_count().
+        self.assertEqual(monitor.cpu_percent((100, 2000000000), (102, 3000000000), cores=1), 50)
+        # Normalized to all given cores: 50% of one core across 4 cores = 12.5%.
+        self.assertEqual(monitor.cpu_percent((100, 2000000000), (102, 3000000000), cores=4), 12.5)
+        # Never exceeds 100%, even when every core is fully loaded.
+        self.assertEqual(monitor.cpu_percent((100, 0), (101, 5000000000), cores=4), 100)
 
 
 class ArchiveTests(unittest.TestCase):

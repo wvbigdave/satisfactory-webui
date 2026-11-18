@@ -50,8 +50,8 @@ export default function History() {
           <div className="mb-5 grid gap-5 lg:grid-cols-2">
             <Panel glow={false}><TelemetryChart samples={data.samples} field="tps" label="Tick rate" unit="TPS" color="green" height={200} /></Panel>
             <Panel glow={false}><TelemetryChart samples={data.samples} field="players" label="Concurrent players" unit="players" color="blue" height={200} digits={0} /></Panel>
-            <Panel glow={false}><TelemetryChart samples={data.samples} field="memoryBytes" label="Service memory" unit="bytes" color="purple" height={200} digits={0} /></Panel>
-            <Panel glow={false}><TelemetryChart samples={data.samples} field="cpuPercent" label="Service CPU" unit="%" color="orange" height={200} /></Panel>
+            <Panel glow={false}><TelemetryChart samples={data.samples} field="memoryBytes" label="Memory" unit="bytes" color="purple" height={200} digits={0} /></Panel>
+            <Panel glow={false}><TelemetryChart samples={data.samples} field="cpuPercent" label="CPU" unit="%" color="orange" height={200} /></Panel>
             <Panel glow={false}><TelemetryChart samples={data.samples} field="diskUsed" label="Filesystem used" unit="bytes" color="red" height={200} digits={0} /></Panel>
             <Panel glow={false}><TelemetryChart samples={data.samples} field="saveBytes" label="Save storage" unit="bytes" color="orange" height={200} digits={0} /></Panel>
           </div>
@@ -65,7 +65,7 @@ export default function History() {
             <SectionHead title="Honesty notes" />
             <ul className="list-disc space-y-1 pl-5 text-[12px] text-muted">
               <li>Unknown values are left as gaps — never interpolated into a fake zero.</li>
-              <li>CPU is whole-service cgroup usage; 100% = one core. Memory includes page cache.</li>
+              <li>CPU is 0–100, normalized over all cores allocated to the container. Memory covers everything running in the container/machine.</li>
               <li>Per-player identity, playtime and factory data are not available from the vanilla API.</li>
             </ul>
           </Panel>

@@ -59,7 +59,7 @@ export interface Overview {
   error?: string | null;
   health?: string;
   state: GameState;
-  resources?: { memoryBytes?: number | null; cpuPercent?: number | null; cpuCores?: number; source?: string; error?: string | null };
+  resources?: { memoryBytes?: number | null; memoryMaxBytes?: number | null; cpuPercent?: number | null; cpuCores?: number; source?: string; error?: string | null };
   disk?: { total?: number; used?: number; free?: number };
   saveStorage?: { bytes?: number; count?: number; latestBytes?: number; source?: string; error?: string | null };
   service?: { ExecMainPID?: string; LoadState?: string; ActiveState?: string; SubState?: string };

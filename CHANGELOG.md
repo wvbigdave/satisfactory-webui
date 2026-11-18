@@ -6,6 +6,21 @@ All notable changes to the Satisfactory WebUI are recorded here. Format follows
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-11-18
+
+### Changed
+- Normalize CPU usage to 0–100% across every core the container is given, so a
+  fully-loaded multi-core container reports 100% (not N×100). CPU and memory now
+  read from the whole-container cgroup — everything running in the container,
+  or the whole machine on bare metal — instead of the single service cgroup.
+- Autodetect the container's given core count and show it as fact (e.g. "4 cores
+  allocated") rather than a hardcoded "up to N cores" ceiling; the gauge never
+  limits to a fixed core maximum.
+- Memory gauge now shows in-use bytes against the container's allocation
+  (`memoryMaxBytes` from MemTotal) in human-readable units, with a capacity bar.
+- Shorten the telemetry tile titles on Overview and History: "Service CPU" and
+  "Service memory" are now "CPU" and "Memory".
+
 ## [0.7.2] - 2026-11-06
 
 ### Fixed

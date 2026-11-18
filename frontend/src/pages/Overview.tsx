@@ -80,8 +80,8 @@ export default function Overview({ branding }: { branding: Branding }) {
       <div className="mb-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Metric label="Connected players" value={g.numConnectedPlayers ?? null} detail={`of ${g.playerLimit ?? "—"} slots`} color="blue" n={g.numConnectedPlayers ?? null} max={g.playerLimit ?? null} digits={0} />
         <Metric label="Average tick rate" value={g.averageTickRate ?? null} detail="TPS · API-reported, not a fixed target" color="green" suffix="" />
-        <Metric label="Service memory" value={r.memoryBytes ? r.memoryBytes / 1024 / 1024 : null} detail="MiB · whole service cgroup (includes cache)" color="purple" digits={0} />
-        <Metric label="Service CPU" value={r.cpuPercent ?? null} detail={`% · 100% = one core (up to ${r.cpuCores ?? "?"} cores)`} color="orange" n={r.cpuPercent ?? null} max={(r.cpuCores || 1) * 100} suffix="%" />
+        <Metric label="Memory" value={r.memoryBytes != null ? r.memoryBytes / 1024 / 1024 / 1024 : null} detail={`${fmtBytes(r.memoryBytes)} in use · ${fmtBytes(r.memoryMaxBytes)} allocated`} color="purple" n={r.memoryBytes ?? null} max={r.memoryMaxBytes ?? null} digits={2} suffix=" GiB" />
+        <Metric label="CPU" value={r.cpuPercent ?? null} detail={`% · ${r.cpuCores ?? "?"} cores allocated`} color="orange" n={r.cpuPercent ?? null} max={100} suffix="%" />
       </div>
 
       <div className="mb-5 grid gap-5 lg:grid-cols-[1.5fr_1fr]">

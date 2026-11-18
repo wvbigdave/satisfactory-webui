@@ -9,7 +9,18 @@ from pathlib import Path
 import sqlite3
 import threading
 import time
-from .config import STATE_DIR, SAVE_DIR, CGROUP
+from . import config
+from .config import STATE_DIR, SAVE_DIR
+
+# Service-scoped cgroup path (set by SATISFACTORY_CGROUP). Kept as a public
+# attribute for config introspection; resource gauges read the whole-container
+# root (MACHINE_CGROUP) instead.
+CGROUP = config.CGROUP
+
+# cgroup root covering the whole container as seen by the hypervisor (also the
+# machine root on bare metal). CPU gauges reflect everything in the container,
+# not just the satisfactory service's own cgroup (config.CGROUP).
+MACHINE_CGROUP = Path('/sys/fs/cgroup')
 
 INTERVAL = 30
 RETENTION = 7 * 86400
@@ -18,19 +29,37 @@ _previous = None
 _resource_lock = threading.Lock()
 
 
-def cpu_percent(previous, current):
-    """One fully occupied core = 100%; multiple cores can exceed 100%."""
+def cpu_percent(previous, current, cores=None):
+    """All given cores fully occupied = 100%; result is capped at 100.
+
+    ``delta`` is in nanoseconds, ``elapsed`` in seconds. Normalized to the
+    number of cores given to the container so a fully loaded multi-core
+    container never reports more than 100%.
+    """
+    cores = cores if cores is not None else os.cpu_count() or 1
     elapsed, delta = current[0] - previous[0], current[1] - previous[1]
-    return round(delta / 1e9 / elapsed * 100, 2) if elapsed > 0 and delta >= 0 else None
+    if not (elapsed > 0 and delta >= 0):
+        return None
+    percent = delta / 1e9 / elapsed / cores * 100
+    return round(min(percent, 100.0), 2)
+
+
+def memory_max_bytes():
+    """Memory ceiling in bytes from MemTotal (:file:`/proc/meminfo`, in kB)."""
+    for line in Path('/proc/meminfo').read_text().splitlines():
+        if line.startswith('MemTotal:'):
+            return int(line.split()[1]) * 1024
+    return None
 
 
 def resources():
     global _previous
-    out = {'memoryBytes': None, 'cpuPercent': None, 'cpuCores': os.cpu_count(),
-           'source': str(CGROUP), 'error': None}
+    out = {'memoryBytes': None, 'memoryMaxBytes': None, 'cpuPercent': None,
+           'cpuCores': os.cpu_count(), 'source': str(MACHINE_CGROUP), 'error': None}
     try:
-        out['memoryBytes'] = int((CGROUP / 'memory.current').read_text())
-        counters = dict(line.split() for line in (CGROUP / 'cpu.stat').read_text().splitlines())
+        out['memoryBytes'] = int((MACHINE_CGROUP / 'memory.current').read_text())
+        out['memoryMaxBytes'] = memory_max_bytes()
+        counters = dict(line.split() for line in (MACHINE_CGROUP / 'cpu.stat').read_text().splitlines())
         current = (time.monotonic(), int(counters['usage_usec']) * 1000)
         with _resource_lock:
             if _previous:
