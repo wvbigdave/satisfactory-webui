@@ -45,38 +45,106 @@ def cpu_percent(previous, current, cores=None):
 
 
 def memory_max_bytes():
-    """Memory ceiling in bytes from MemTotal (:file:`/proc/meminfo`, in kB)."""
-    for line in Path('/proc/meminfo').read_text().splitlines():
-        if line.startswith('MemTotal:'):
-            return int(line.split()[1]) * 1024
+    """Memory ceiling in bytes: cgroup limit when finite, else MemTotal.
+
+    Works on cgroup v2 (``memory.max``), cgroup v1 (``memory.limit_in_bytes``),
+    and bare metal (falls back to ``MemTotal`` from ``/proc/meminfo``)."""
+    for path, huge in ((MACHINE_CGROUP / 'memory.max', 1 << 62),
+                       (Path('/sys/fs/cgroup/memory/memory.limit_in_bytes'), 1 << 62)):
+        try:
+            raw = path.read_text().strip()
+        except OSError:
+            continue
+        if raw in ('max', ''):
+            continue
+        try:
+            v = int(raw)
+        except ValueError:
+            continue
+        if 0 < v < huge:
+            return v
+        return None  # reserve the pathological case
+    return _meminfo('MemTotal')
+
+
+def _meminfo(key):
+    """Value of a ``/proc/meminfo`` counter in bytes, or None when absent."""
+    try:
+        for line in Path('/proc/meminfo').read_text().splitlines():
+            if line.startswith(key + ':'):
+                return int(line.split()[1]) * 1024  # kB -> bytes
+    except (OSError, ValueError, IndexError):
+        return None
+    return None
+
+
+def _stat_map(paths):
+    """First readable cgroup ``*.stat`` parsed into {key: value}."""
+    for p in paths:
+        try:
+            return dict(line.split() for line in p.read_text().splitlines())
+        except (OSError, ValueError):
+            continue
     return None
 
 
 def memory_usage_bytes():
-    """Anonymous (committed) memory in the container, excluding page cache.
+    """Anonymous (committed) memory, excluding page cache.
 
-    Reads the ``anon`` counter from cgroup v2 ``memory.stat`` so the gauge
-    matches what the hypervisor (Proxmox) reports as the container's memory
-    usage. ``memory.current`` includes reclaimable file page cache, which
-    overstates live usage by a large margin on game servers.
+    Reads the ``anon`` counter from cgroup v2 ``memory.stat`` (or cgroup v1),
+    so the gauge matches what the hypervisor (Proxmox) reports as the
+    container's memory usage. On bare metal without a readable cgroup, falls
+    back to ``AnonPages`` from ``/proc/meminfo`` so the figure is always
+    meaningful and never just raw ``memory.current`` (which includes reclaimable
+    file page cache and overstates live usage).
     """
-    stat = dict(line.split() for line in (MACHINE_CGROUP / 'memory.stat').read_text().splitlines())
-    return int(stat['anon'])
+    stat = _stat_map((MACHINE_CGROUP / 'memory.stat', Path('/sys/fs/cgroup/memory/memory.stat')))
+    if stat and stat.get('anon'):
+        return int(stat['anon'])
+    return _meminfo('AnonPages')
+
+
+def _cpu_usage_ns():
+    """CPU usage numerator (nanoseconds) for whatever backend is present.
+
+    Returns ``(name, nanoseconds)``: cgroup v2 ``cpu.stat`` usage_usec, cgroup
+    v1 ``cpuacct.usage`` (already ns), or a /proc/stat whole-machine aggregate
+    for bare metal (jiffies scaled by USER_HZ). Returns ``(None, None)`` when
+    nothing is readable."""
+    stat = _stat_map((MACHINE_CGROUP / 'cpu.stat',))
+    if stat and stat.get('usage_usec'):
+        return 'cgroup-v2', int(stat['usage_usec']) * 1000
+    try:
+        ns = int(Path('/sys/fs/cgroup/cpuacct/cpuacct.usage').read_text())
+        return 'cgroup-v1', ns
+    except (OSError, ValueError):
+        pass
+    try:
+        with open('/proc/stat', encoding='utf-8') as f:
+            parts = f.readline().split()
+        if parts and parts[0] == 'cpu' and len(parts) >= 5:
+            jiffies = sum(int(x) for x in parts[1:5])
+            hz = os.sysconf('SC_CLK_TCK') or 100
+            return 'procfs', int(jiffies * (1e9 / hz))
+    except (OSError, ValueError):
+        pass
+    return None, None
 
 
 def resources():
     global _previous
+    backend, usage = _cpu_usage_ns()
     out = {'memoryBytes': None, 'memoryMaxBytes': None, 'cpuPercent': None,
-           'cpuCores': os.cpu_count(), 'source': str(MACHINE_CGROUP), 'error': None}
+           'cpuCores': os.cpu_count(), 'source': backend or str(MACHINE_CGROUP), 'error': None}
     try:
         out['memoryBytes'] = memory_usage_bytes()
         out['memoryMaxBytes'] = memory_max_bytes()
-        counters = dict(line.split() for line in (MACHINE_CGROUP / 'cpu.stat').read_text().splitlines())
-        current = (time.monotonic(), int(counters['usage_usec']) * 1000)
-        with _resource_lock:
-            if _previous:
-                out['cpuPercent'] = cpu_percent(_previous, current)
-            _previous = current
+        if usage is not None:
+            current = (time.monotonic(), usage)
+            with _resource_lock:
+                if _previous:
+                    out['cpuPercent'] = cpu_percent(_previous, current)
+                _previous = current
     except (OSError, ValueError, KeyError) as e:
         out['error'] = str(e)
     return out

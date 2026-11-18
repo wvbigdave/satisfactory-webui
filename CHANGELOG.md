@@ -6,6 +6,22 @@ All notable changes to the Satisfactory WebUI are recorded here. Format follows
 
 ## [Unreleased]
 
+## [0.7.5] - 2026-11-18
+
+### Fixed
+- CPU tile no longer goes blank at 0%: the animated number now initialises from
+  its value (a valid 0 renders "0.0%") and re-paints on value changes, instead
+  of showing a placeholder dash when the value settles on the same number.
+
+### Changed
+- Resource detection is now environment-adaptive and needs no configuration:
+  CPU and memory auto-detect cgroup v2 (unified), cgroup v1 (memory/cpuacct
+  controllers), or bare-metal `/proc`/`/proc/stat` fallbacks. Memory usage is
+  anonymous/committed memory (page cache excluded) in every mode, matching
+  hypervisor reports; the memory ceiling uses the cgroup limit when finite and
+  MemTotal otherwise. `source` in `/api/overview` resources reports which
+  backend was detected.
+
 ## [0.7.4] - 2026-11-18
 
 ### Fixed

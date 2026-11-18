@@ -44,15 +44,29 @@ class HistoryTests(unittest.TestCase):
         with mock.patch.object(Path, 'read_text', return_value=stat):
             self.assertEqual(monitor.memory_usage_bytes(), 2929614848)
 
-    def test_resource_source_is_whole_container_cgroup(self):
-        with mock.patch.object(monitor, 'os') as os_mock:
-            os_mock.cpu_count.return_value = 4
-            os_mock.cpu_count.__bool__ = lambda self: True
-            r = monitor.resources()
-            # First sample has no previous baseline, so cpuPercent is unavailable.
-            self.assertEqual(r['cpuCores'], 4)
-            self.assertEqual(r['source'], str(monitor.MACHINE_CGROUP))
-            self.assertIsNotNone(r['memoryMaxBytes'])
+    def test_memory_usage_falls_back_to_anonpages_without_cgroup(self):
+        stat = "MemTotal:       16384000 kB\nMemFree:        2000000 kB\nAnonPages:      5120000 kB\nOther:         999 kB\n"
+        with mock.patch.object(monitor, '_stat_map', return_value=None), \
+             mock.patch.object(Path, 'read_text', return_value=stat):
+            self.assertEqual(monitor.memory_usage_bytes(), 5120000 * 1024)
+
+    def test_memory_max_reads_cgroup_limit_then_memtotal(self):
+        # cgroup v2 memory.max readable as a finite limit -> that value wins.
+        with mock.patch.object(Path, 'read_text', return_value="8589934592\n"), \
+             mock.patch.object(monitor, '_meminfo', return_value=9999):
+            self.assertEqual(monitor.memory_max_bytes(), 8589934592)
+        # When memory.max is 'max' (unlimited) it falls through to MemTotal.
+        with mock.patch.object(Path, 'read_text', return_value="max\n"), \
+             mock.patch.object(monitor, '_meminfo', return_value=5368709120):
+            self.assertEqual(monitor.memory_max_bytes(), 5368709120)
+
+    def test_resource_source_detects_backend(self):
+        backend, _ = monitor._cpu_usage_ns()
+        self.assertIn(backend, ('cgroup-v2', 'cgroup-v1', 'procfs'))
+        r = monitor.resources()
+        self.assertIn(r['source'], ('cgroup-v2', 'cgroup-v1', 'procfs'))
+        self.assertIsInstance(r['cpuCores'], int)
+        self.assertIsNotNone(r['memoryMaxBytes'])
 
 
 class ArchiveTests(unittest.TestCase):

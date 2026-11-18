@@ -57,7 +57,9 @@ export function AnimatedNumber({ value, digits = 1, suffix = "" }: { value?: num
   const valid = typeof value === "number" && Number.isFinite(value);
   const mv = useMotionValue(valid ? (value as number) : 0);
   const spring = useSpring(mv, { stiffness: 90, damping: 20 });
-  const [display, setDisplay] = useState("—");
+  // Initialise from value so a valid 0 (e.g. CPU at 0%) renders as "0.0%",
+  // not the placeholder dash (which reads as a blank box).
+  const [display, setDisplay] = useState(valid ? (value as number).toFixed(digits) + suffix : "—");
 
   useEffect(() => { if (valid) mv.set(value as number); }, [value, valid, mv]);
 
@@ -65,7 +67,9 @@ export function AnimatedNumber({ value, digits = 1, suffix = "" }: { value?: num
     const paint = (v: number) => setDisplay(valid ? v.toFixed(digits) + suffix : "—");
     paint(spring.get());
     return spring.on("change", paint);
-  }, [spring, valid, digits, suffix]);
+    // 'value' ensures we re-render even when the spring settles on the same
+    // number (e.g. a transition into 0), so the figure never blanks out.
+  }, [spring, valid, digits, suffix, value]);
 
   return <span>{display}</span>;
 }
